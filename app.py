@@ -10,6 +10,7 @@ from flask import Flask, Response, jsonify, request
 
 # from respuestas import REGLAS, RESPUESTA_NO_ENCONTRADA
 from motor_conocimientos import (
+    ReglaConocimiento,
     buscar_mejor_regla,
     cargar_motor_conocimientos,
     construir_respuesta,
@@ -114,8 +115,22 @@ def obtener_respuesta(texto_usuario: str) -> str:
     return construir_respuesta(regla)
 
 
-def enviar_mensaje_texto(numero_destino: str, mensaje: str) -> bool:
-    """Envía un mensaje de texto mediante WhatsApp Cloud API."""
+def es_saludo_bienvenida(regla: ReglaConocimiento | None) -> bool:
+    """Indica si una regla corresponde al saludo de bienvenida."""
+    if regla is None:
+        return False
+
+    return (
+        normalizar_texto(regla.categoria) == "bienvenida"
+        and normalizar_texto(regla.subcategoria) == "saludo"
+    )
+
+
+def enviar_mensaje(
+    numero_destino: str,
+    payload: dict[str, Any],
+) -> bool:
+    """Envía un payload mediante WhatsApp Cloud API."""
     url = (
         f"https://graph.facebook.com/"
         f"{GRAPH_API_VERSION}/"
@@ -125,17 +140,6 @@ def enviar_mensaje_texto(numero_destino: str, mensaje: str) -> bool:
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
         "Content-Type": "application/json",
-    }
-
-    payload = {
-        "messaging_product": "whatsapp",
-        "recipient_type": "individual",
-        "to": numero_destino,
-        "type": "text",
-        "text": {
-            "preview_url": False,
-            "body": mensaje,
-        },
     }
 
     try:
@@ -165,6 +169,65 @@ def enviar_mensaje_texto(numero_destino: str, mensaje: str) -> bool:
             "Error de conexión al enviar mensaje a Meta"
         )
         return False
+
+
+def enviar_mensaje_texto(numero_destino: str, mensaje: str) -> bool:
+    """Envía un mensaje de texto mediante WhatsApp Cloud API."""
+    return enviar_mensaje(
+        numero_destino,
+        {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": numero_destino,
+            "type": "text",
+            "text": {
+                "preview_url": False,
+                "body": mensaje,
+            },
+        },
+    )
+
+
+def enviar_menu_bienvenida(numero_destino: str) -> bool:
+    """Envía las tres opciones de la bienvenida como botones."""
+    return enviar_mensaje(
+        numero_destino,
+        {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": numero_destino,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {"text": "Elige una opción:"},
+                "action": {
+                    "buttons": [
+                        {
+                            "type": "reply",
+                            "reply": {
+                                "id": "menu_alimentos",
+                                "title": "Alimentos",
+                            },
+                        },
+                        {
+                            "type": "reply",
+                            "reply": {
+                                "id": "menu_salud",
+                                "title": "Salud",
+                            },
+                        },
+                        {
+                            "type": "reply",
+                            "reply": {
+                                "id": "menu_bebidas",
+                                "title": "Bebidas",
+                            },
+                        },
+                    ],
+                },
+            },
+        },
+    )
 
 
 def extraer_mensajes_texto(payload: dict[str, Any]) -> list[dict[str, str]]:
@@ -266,8 +329,16 @@ def recibir_webhook() -> tuple[Response, int]:
             texto,
         )
 
-        respuesta_bot = obtener_respuesta(texto)
+        regla = buscar_mejor_regla(texto, REGLAS_CONOCIMIENTO)
+        respuesta_bot = (
+            construir_respuesta(regla)
+            if regla is not None
+            else RESPUESTA_NO_ENCONTRADA
+        )
         enviar_mensaje_texto(numero, respuesta_bot)
+
+        if es_saludo_bienvenida(regla):
+            enviar_menu_bienvenida(numero)
 
     return jsonify({"estado": "recibido"}), 200
 
