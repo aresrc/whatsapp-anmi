@@ -7,8 +7,9 @@ from contextlib import closing
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from clasificador_google import ErrorClasificacionGoogle, SeleccionGoogle
 from conversaciones import RepositorioConversaciones
 from motor_conocimientos import ReglaConocimiento, ResultadoBusqueda
 from servicio_conversacion import (
@@ -285,6 +286,101 @@ class ServicioConversacionTest(unittest.TestCase):
             )
 
         self.assertEqual(resultado.respuestas[4].texto, "Enlace:\nNo disponible")
+
+    def test_gemini_selecciona_regla_y_recibe_contexto_compacto(self) -> None:
+        self._completar_onboarding("gemini", meses="8")
+        primera_regla = crear_resultado(categoria="Alimentación").regla
+        segunda_regla = crear_resultado(categoria="Anemia").regla
+        clasificador = MagicMock()
+        clasificador.seleccionar.side_effect = (
+            SeleccionGoogle(
+                id_regla="ANMI-0001",
+                regla=primera_regla,
+                evidencia={
+                    "origen": "google",
+                    "modelo": "gemini-3.1-flash-lite",
+                    "modo_cache": "explicita",
+                },
+            ),
+            SeleccionGoogle(
+                id_regla="ANMI-0002",
+                regla=segunda_regla,
+                evidencia={"origen": "google"},
+            ),
+        )
+        self.servicio.clasificador = clasificador
+
+        primera = self.servicio.procesar_mensaje(
+            "simulador", "gemini", "alimentos con hierro"
+        )
+        self._confirmar(primera)
+        segunda = self.servicio.procesar_mensaje(
+            "simulador", "gemini", "¿y qué cantidad?"
+        )
+
+        self.assertEqual(primera.respuestas[0].categoria, "Alimentación")
+        self.assertIsNone(primera.respuestas[0].puntaje)
+        self.assertEqual(
+            primera.respuestas[0].evidencia["id_regla"],
+            "ANMI-0001",
+        )
+        contexto = clasificador.seleccionar.call_args_list[1].args[1]
+        self.assertEqual(contexto.meses_bebe, 8)
+        self.assertEqual(contexto.alimentos_contexto, "lentejas y pollo")
+        self.assertEqual(contexto.categoria_anterior, "Alimentación")
+        self.assertEqual(contexto.subcategoria_anterior, "Hierro")
+        self.assertEqual(
+            contexto.consultas_anteriores,
+            ("alimentos con hierro",),
+        )
+        self.assertEqual(segunda.respuestas[0].categoria, "Anemia")
+
+    def test_error_gemini_usa_motor_anterior_como_fallback(self) -> None:
+        self._completar_onboarding("fallback")
+        clasificador = MagicMock()
+        clasificador.seleccionar.side_effect = ErrorClasificacionGoogle(
+            "servicio no disponible"
+        )
+        self.servicio.clasificador = clasificador
+        resultado_local = crear_resultado(categoria="Anemia")
+
+        with patch(
+            "servicio_conversacion.buscar_mejor_regla",
+            return_value=resultado_local,
+        ) as buscar:
+            resultado = self.servicio.procesar_mensaje(
+                "simulador", "fallback", "síntomas de anemia"
+            )
+
+        self.assertEqual(resultado.respuestas[0].categoria, "Anemia")
+        self.assertEqual(
+            resultado.respuestas[0].evidencia["motivo"],
+            "evidencia suficiente",
+        )
+        buscar.assert_called_once()
+
+    def test_gemini_prioriza_emergencia_antes_de_bienvenida(self) -> None:
+        emergencia = crear_resultado(
+            categoria="Emergencia",
+            subcategoria="Signos de alarma",
+            respuesta="Acude de inmediato a un centro de salud.",
+        )
+        clasificador = MagicMock()
+        clasificador.seleccionar.return_value = SeleccionGoogle(
+            id_regla="ANMI-0400",
+            regla=emergencia.regla,
+            evidencia={"origen": "google"},
+        )
+        self.servicio.clasificador = clasificador
+
+        with patch("servicio_conversacion.buscar_mejor_regla") as buscar:
+            resultado = self.servicio.procesar_mensaje(
+                "whatsapp", "emergencia-google", "mi bebé no respira"
+            )
+
+        buscar.assert_not_called()
+        self.assertEqual(resultado.respuestas[0].categoria, "Emergencia")
+        self.assertEqual(resultado.respuestas[-1].texto, MENSAJE_BIENVENIDA)
 
     def test_fin_calificacion_finalizacion_dedupe_y_nueva_sesion(self) -> None:
         conversacion_id = self._completar_onboarding("cierre", meses="11")

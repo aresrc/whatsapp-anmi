@@ -8,6 +8,7 @@ import motor_conocimientos as motor
 
 
 ENCABEZADOS_V2 = [
+    "ID",
     "Categor\u00eda",
     "Subcategor\u00eda",
     "Palabras Clave (Para el bot)",
@@ -38,7 +39,7 @@ class CsvMotorConocimientosV2Tests(unittest.TestCase):
             cls.filas = tuple(lector)
         cls.reglas = motor.cargar_motor_conocimientos(cls.ruta_csv)
 
-    def test_usa_csv_v2_con_bom_ocho_encabezados_y_412_filas(self) -> None:
+    def test_usa_csv_v2_con_bom_nueve_encabezados_y_412_filas(self) -> None:
         self.assertEqual(self.ruta_csv.name, "motor_conocimientos_v2.csv")
         self.assertEqual(self.ruta_csv.read_bytes()[:3], b"\xef\xbb\xbf")
         self.assertEqual(self.encabezados, ENCABEZADOS_V2)
@@ -64,8 +65,8 @@ class CsvMotorConocimientosV2Tests(unittest.TestCase):
 
     def test_elimina_exactamente_una_pareja_de_comillas_externas(self) -> None:
         fila = self.filas[0]
-        respuesta_csv = fila[ENCABEZADOS_V2[3]]
-        disclaimer_csv = fila[ENCABEZADOS_V2[4]]
+        respuesta_csv = fila[ENCABEZADOS_V2[4]]
+        disclaimer_csv = fila[ENCABEZADOS_V2[5]]
 
         self.assertTrue(respuesta_csv.startswith('"'))
         self.assertTrue(respuesta_csv.endswith('"'))
@@ -89,7 +90,7 @@ class CsvMotorConocimientosV2Tests(unittest.TestCase):
         ):
             with self.subTest(fila=numero):
                 esperado = _sin_una_pareja_de_comillas(
-                    fila[ENCABEZADOS_V2[4]]
+                    fila[ENCABEZADOS_V2[5]]
                 )
                 self.assertEqual(regla.disclaimer, esperado)
 

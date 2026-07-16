@@ -11,6 +11,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, Response, current_app, jsonify, request
 
+from clasificador_google import crear_clasificador_google
 from conversaciones import (
     ErrorPersistenciaConversacion,
     RepositorioConversaciones,
@@ -204,6 +205,7 @@ def crear_app(
     ruta_db: str | Path | None = None,
     *,
     iniciar_limpieza: bool = False,
+    usar_google: bool = True,
 ) -> Flask:
     """Construye la aplicación y permite aislar la base en las pruebas."""
     aplicacion = Flask(__name__)
@@ -213,6 +215,11 @@ def crear_app(
     servicio = ServicioConversacion(
         repositorio,
         REGLAS_CONOCIMIENTO,
+        clasificador=(
+            crear_clasificador_google(REGLAS_CONOCIMIENTO)
+            if usar_google
+            else None
+        ),
     )
     servicio.inicializar()
     aplicacion.extensions["anmi_servicio"] = servicio
@@ -226,8 +233,9 @@ def crear_app(
     def inicio() -> tuple[dict[str, Any], int]:
         return {
             "estado": "activo",
-            "servicio": "ANMI WhatsApp Rule Bot",
+            "servicio": "ANMI WhatsApp Bot",
             "reglas": len(REGLAS_CONOCIMIENTO),
+            "clasificador": servicio.modo_clasificador,
         }, 200
 
     @aplicacion.get("/webhook")

@@ -1,0 +1,413 @@
+﻿ID,Categoría,Subcategoría
+ANMI-0001,Definición y Síntomas,¿Qué es la Anemia? (Básico)
+ANMI-0002,Definición y Síntomas,¿Qué es la Anemia? (Técnico)
+ANMI-0003,Definición y Síntomas,¿Qué es la Anemia? (Simple)
+ANMI-0004,Definición y Síntomas,¿Qué es la Anemia? (Enfoque Niño)
+ANMI-0005,Definición y Síntomas,Síntomas (Lista General)
+ANMI-0006,Definición y Síntomas,Síntomas (Variación)
+ANMI-0007,Definición y Síntomas,Síntoma: Palidez
+ANMI-0008,Definición y Síntomas,Síntoma: Sueño/Cansancio
+ANMI-0009,Definición y Síntomas,Síntoma: Irritabilidad
+ANMI-0010,Definición y Síntomas,Síntoma: Apetito
+ANMI-0011,Definición y Síntomas,Síntoma: Pica (Tierra)
+ANMI-0012,Definición y Síntomas,Síntoma: Mareos
+ANMI-0013,Definición y Síntomas,Anemia Silenciosa
+ANMI-0014,Definición y Síntomas,Anemia Silenciosa (Variación)
+ANMI-0015,Definición y Síntomas,Consecuencias (General)
+ANMI-0016,Definición y Síntomas,Consecuencias (Cerebro)
+ANMI-0017,Definición y Síntomas,Consecuencias (Crecimiento)
+ANMI-0018,Definición y Síntomas,Consecuencias (Defensas)
+ANMI-0019,Definición y Síntomas,Consecuencias (Escolar)
+ANMI-0020,Definición y Síntomas,Consecuencias (Gestante)
+ANMI-0021,Definición y Síntomas,Consecuencias (Gestante/Parto)
+ANMI-0022,Definición y Síntomas,Consecuencias (Gestante/Bebé)
+ANMI-0023,Definición y Síntomas,Consecuencias (Adulto)
+ANMI-0024,Definición y Síntomas,Estadísticas (Perú)
+ANMI-0025,Definición y Síntomas,Estadísticas (Zonas)
+ANMI-0026,Definición y Síntomas,Estadísticas (Edad)
+ANMI-0027,Definición y Síntomas,Estadísticas (Gestantes)
+ANMI-0028,Definición y Síntomas,Diagnóstico (Cómo)
+ANMI-0029,Definición y Síntomas,Diagnóstico (Lugar)
+ANMI-0030,Definición y Síntomas,Diagnóstico (No visual)
+ANMI-0031,Prevención (Bebés),Medidas Clave (General)
+ANMI-0032,Prevención (Bebés),Medidas Clave (Enfoque)
+ANMI-0033,Prevención (Bebés),Medidas Clave (Simple)
+ANMI-0034,Prevención (Bebés),Lactancia (LME)
+ANMI-0035,Prevención (Bebés),Lactancia (Calostro)
+ANMI-0036,Prevención (Bebés),Lactancia (Duración)
+ANMI-0037,Prevención (Bebés),Lactancia (Inicio)
+ANMI-0038,Prevención (Bebés),Corte de Cordón (Definición)
+ANMI-0039,Prevención (Bebés),Corte de Cordón (Por qué)
+ANMI-0040,Prevención (Bebés),Corte de Cordón (Cuánto hierro)
+ANMI-0041,Prevención (Bebés),Higiene (Lavado de manos)
+ANMI-0042,Prevención (Bebés),Higiene (Agua Segura)
+ANMI-0043,Prevención (Bebés),Higiene (Parásitos)
+ANMI-0044,Prevención (Bebés),Controles CRED (Importancia)
+ANMI-0045,Prevención (Bebés),Controles CRED (Descarte)
+ANMI-0046,Prevención (Bebés),Controles CRED (Frecuencia)
+ANMI-0047,Prevención (Gestantes),Medidas Clave (General)
+ANMI-0048,Prevención (Gestantes),Medidas Clave (Variación)
+ANMI-0049,Prevención (Gestantes),Controles Prenatales (Importancia)
+ANMI-0050,Prevención (Gestantes),Controles Prenatales (Descarte)
+ANMI-0051,Prevención (Gestantes),Ácido Fólico (Importancia)
+ANMI-0052,Prevención (Gestantes),Ácido Fólico (Dosis)
+ANMI-0053,Prevención (Gestantes),Alimentación (Hierro)
+ANMI-0054,Prevención (Gestantes),Alimentación (Vitamina C)
+ANMI-0055,Prevención (Gestantes),Alimentación (Qué evitar)
+ANMI-0056,Prevención (Gestantes),Alimentación (Hígado)
+ANMI-0057,Prevención (Gestantes),Ambiente Saludable
+ANMI-0058,Prevención (Adolescentes),Importancia
+ANMI-0059,Prevención (Adolescentes),Suplementación
+ANMI-0060,Prevención (Adolescentes),Alimentación
+ANMI-0061,Prevención (Mujer Edad Fértil),MEF
+ANMI-0062,Prevención (Mujer Edad Fértil),Planificar Embarazo
+ANMI-0063,Prevención (General),Prevención vs Tratamiento
+ANMI-0064,Prevención (General),Dosis Preventiva vs Terapéutica
+ANMI-0065,Prevención (General),Alimentos vs Suplementos
+ANMI-0066,Prevención (General),Alimentos vs Suplementos (Gestante)
+ANMI-0067,Prevención (General),Mitos: Leche de vaca
+ANMI-0068,Prevención (General),Mitos: Leche de vaca (Absorción)
+ANMI-0069,Prevención (General),"Mitos: Anemia ""no se cura"""
+ANMI-0070,Prevención (General),"Mitos: ""Mi hijo es gordito"""
+ANMI-0071,Prevención (General),"Mitos: ""No le doy hierro porque lo enferma"""
+ANMI-0072,Prevención (Gestantes),Medidas Clave (Multisectorial)
+ANMI-0073,Prevención (Bebés),Medidas Clave (Multisectorial)
+ANMI-0074,Prevención (Bebés),Hitos (4 meses)
+ANMI-0075,Prevención (Bebés),Hitos (6 meses)
+ANMI-0076,Prevención (Bebés),Hitos (12 meses)
+ANMI-0077,Prevención (Bebés),Hitos (30 días)
+ANMI-0078,Prevención (Gestantes),Hitos (Semana 14)
+ANMI-0079,Prevención (Gestantes),Hitos (Postparto)
+ANMI-0080,Prevención (Adolescentes),Hitos (Control Anual)
+ANMI-0081,Prevención (General),Causa: Crecimiento Rápido
+ANMI-0082,Prevención (General),Causa: Dieta Inadecuada
+ANMI-0083,Prevención (General),Mitos: Tinta de los pañales
+ANMI-0084,Prevención (General),"Mitos: ""Sereno"" o ""mal de ojo"""
+ANMI-0085,Prevención (General),Mitos: Remolacha / Betarraga
+ANMI-0086,Prevención (General),Mitos: Lentejas
+ANMI-0087,Prevención (General),Mitos: Frutas secas
+ANMI-0088,Prevención (General),Mitos: Espinaca
+ANMI-0089,Prevención (General),"Mitos: ""No necesita suplemento"""
+ANMI-0090,Prevención (Gestantes),"Mitos: ""Las pastillas engordan"""
+ANMI-0091,Prevención (Gestantes),"Mitos: ""El bebé nacerá muy grande"""
+ANMI-0092,Prevención (Bebés),"Mitos: ""Le va a doler la barriga"""
+ANMI-0093,Prevención (Gestantes),Hitos (Semana 25-28)
+ANMI-0094,Prevención (Bebés),Hitos (18 meses)
+ANMI-0095,Prevención (Bebés),Hitos (24 y 35 meses)
+ANMI-0096,Prevención (General),Enfoque: Doble Carga
+ANMI-0097,Alimentación (Bebés 6-8m),Inicio de Papillas
+ANMI-0098,Alimentación (Bebés 6-8m),Cantidad de Comida
+ANMI-0099,Alimentación (Bebés 6-8m),Importancia del Hierro
+ANMI-0100,Alimentación (Bebés 6-8m),Consistencia Correcta
+ANMI-0101,Alimentación (Bebés 6-8m),Alimentos Prohibidos
+ANMI-0102,Alimentación (Bebés 6-8m),Leche de Vaca
+ANMI-0103,Alimentación (Bebés 6-8m),Sopas
+ANMI-0104,Alimentación (Bebés 6-8m),Verduras
+ANMI-0105,Alimentación (Bebés 9-11m),Nueva Consistencia
+ANMI-0106,Alimentación (Bebés 9-11m),Cantidad de Hierro
+ANMI-0107,Alimentación (Bebés 9-11m),Frecuencia de Comidas
+ANMI-0108,Alimentación (Bebés 12-23m),Comida Familiar
+ANMI-0109,Alimentación (Bebés 12-23m),Cantidad de Hierro
+ANMI-0110,Alimentación (Bebés 12-23m),Frecuencia de Comidas
+ANMI-0111,Alimentación (Gestantes),Importancia
+ANMI-0112,Alimentación (Gestantes),Frecuencia y Cantidad
+ANMI-0113,Alimentación (Gestantes),Cantidad de Hierro
+ANMI-0114,Alimentación (Gestantes),Alimentos Clave
+ANMI-0115,Alimentación (Gestantes),Lácteos (Calcio)
+ANMI-0116,Alimentación (Gestantes),Menestras
+ANMI-0117,Alimentación (Gestantes),Agua
+ANMI-0118,Alimentación (Gestantes),Formas de Cocción
+ANMI-0119,Alimentación (Madre Lactante),Frecuencia y Cantidad
+ANMI-0120,Alimentos (Hierro Animal),Tipos de Hierro
+ANMI-0121,Alimentos (Hierro Animal),Sangrecita (Importancia)
+ANMI-0122,Alimentos (Hierro Animal),Sangrecita (Preparación)
+ANMI-0123,Alimentos (Hierro Animal),Hígado (Importancia)
+ANMI-0124,Alimentos (Hierro Animal),Bazo (Importancia)
+ANMI-0125,Alimentos (Hierro Animal),Bazo (Preparación)
+ANMI-0126,Alimentos (Hierro Animal),Bofe (Importancia)
+ANMI-0127,Alimentos (Hierro Animal),Pescado (Importancia)
+ANMI-0128,Alimentos (Hierro Animal),Carnes Rojas (Importancia)
+ANMI-0129,Alimentos (Hierro Animal),Riñón (Importancia)
+ANMI-0130,Alimentos (Hierro Animal),Charqui (Importancia)
+ANMI-0131,Alimentos (Hierro Animal),Pollo (Importancia)
+ANMI-0132,Alimentos (Hierro Animal),Huevo (Importancia)
+ANMI-0133,Alimentos (Hierro Vegetal),"Menestras (Lentejas, etc.)"
+ANMI-0134,Alimentos (Hierro Vegetal),Verduras Verdes
+ANMI-0135,Alimentos (Hierro Vegetal),Harinas Fortificadas
+ANMI-0136,Absorción (Facilitadores),Vitamina C (Qué es)
+ANMI-0137,Absorción (Facilitadores),Vitamina C (Ejemplos)
+ANMI-0138,Absorción (Facilitadores),Vitamina C (Cuándo)
+ANMI-0139,Absorción (Facilitadores),Vitamina C (Inhibidores)
+ANMI-0140,Absorción (Facilitadores),Factor Cárnico
+ANMI-0141,Absorción (Facilitadores),Huevo y Leche
+ANMI-0142,Absorción (Inhibidores),¿Qué son los Inhibidores?
+ANMI-0143,Absorción (Inhibidores),Calcio (Leche)
+ANMI-0144,Absorción (Inhibidores),Calcio (Ambos Hierros)
+ANMI-0145,Absorción (Inhibidores),Calcio (Dosis)
+ANMI-0146,Absorción (Inhibidores),"Taninos (Té, Café)"
+ANMI-0147,Alimentación (Mitos),Betarraga / Remolacha
+ANMI-0148,Alimentación (Mitos),Espinaca
+ANMI-0149,Alimentación (Mitos),Dulce de Membrillo
+ANMI-0150,Alimentación (Mitos),Caldo de Pollo
+ANMI-0151,Alimentación (Mitos),Lentejas los Lunes
+ANMI-0152,Alimentación (Mitos),"""Mi hijo es gordito"""
+ANMI-0153,Alimentación (Mitos),"""Comida de grandes"""
+ANMI-0154,Alimentación (Mitos),"""No le doy vísceras"""
+ANMI-0155,Alimentación (Mitos),"""No necesita comida"""
+ANMI-0156,Alimentación (Mitos),"""Solo comida, no suplementos"""
+ANMI-0157,Recetas MINSA (6-8m),Purecito Nutritivo
+ANMI-0158,Recetas MINSA (6-8m),Suavecito Infantil
+ANMI-0159,Recetas MINSA (6-8m),Puré de Bazo y Camote
+ANMI-0160,Recetas MINSA (6-8m),Purecito de Arveja
+ANMI-0161,Recetas MINSA (9-11m),Lomo de Sangrecita
+ANMI-0162,Recetas MINSA (9-11m),Tallarines Verdes
+ANMI-0163,Recetas MINSA (9-11m),Puré de Habas
+ANMI-0164,Recetas MINSA (9-11m),Seco de Hígado
+ANMI-0165,Recetas MINSA (9-11m),Ají de Pescado
+ANMI-0166,Recetas MINSA (12-23m),Locro de Zapallo
+ANMI-0167,Recetas MINSA (12-23m),Trigo a la Jardinera
+ANMI-0168,Recetas MINSA (12-23m),Tortilla Brillante
+ANMI-0169,Recetas MINSA (12-23m),Fiesta de Verduras
+ANMI-0170,Recetas MINSA (12-23m),Torrejita Antianémica
+ANMI-0171,Micronutrientes (MMN),¿Qué son?
+ANMI-0172,Micronutrientes (MMN),¿Para qué sirven?
+ANMI-0173,Micronutrientes (MMN),¿Quiénes los toman?
+ANMI-0174,Micronutrientes (MMN),¿Cuándo empezar?
+ANMI-0175,Micronutrientes (MMN),Duración del Consumo
+ANMI-0176,Micronutrientes (MMN),¿Tienen sabor?
+ANMI-0177,Micronutrientes (MMN),Efectos Secundarios
+ANMI-0178,Micronutrientes (MMN),Cómo Prepararlos (Paso 1-2)
+ANMI-0179,Micronutrientes (MMN),Cómo Prepararlos (Paso 3-4)
+ANMI-0180,Micronutrientes (MMN),Cómo Prepararlos (Paso 5-6)
+ANMI-0181,Micronutrientes (MMN),Qué NO hacer
+ANMI-0182,Micronutrientes (MMN),Recalentar
+ANMI-0183,Micronutrientes (MMN),Antibióticos
+ANMI-0184,Micronutrientes (MMN),Comida + MMN
+ANMI-0185,Alimentación (General),Alimentos Procesados
+ANMI-0186,Alimentación (General),"""Doble Carga"""
+ANMI-0187,Alimentación (General),Inseguridad Alimentaria
+ANMI-0188,Alimentación (Gestantes),Evitar (Pastelería)
+ANMI-0189,Alimentación (Gestantes),Evitar (Alcohol y Cafeína)
+ANMI-0190,Alimentación (Gestantes),Evitar (Alimentos Ultraprocesados)
+ANMI-0191,Alimentación (Bebés),Acompañamiento
+ANMI-0192,Alimentación (Bebés),Variedad
+ANMI-0193,Alimentación (General),Agricultura y Nutrición
+ANMI-0194,Alimentación (General),Alimentos Locales
+ANMI-0195,Alimentación (General),Rol de la Educación
+ANMI-0196,Alimentación (General),"""A comer pescado"""
+ANMI-0197,Alimentación (General),"""De la chacra a la olla"""
+ANMI-0198,Alimentación (Mitos),"""La anemia es solo de pobres"""
+ANMI-0199,Alimentación (Mitos),"""Las vitaminas engordan"""
+ANMI-0200,Alimentación (Bebés),Hígado (Gestante vs Bebé)
+ANMI-0201,Alimentación (General),Hierro de la Leche Materna
+ANMI-0202,Alimentación (General),Hierro de la Leche de Vaca
+ANMI-0203,Alimentación (Bebés 6-8m),Receta: Purecito Moreno
+ANMI-0204,Alimentación (Bebés 6-8m),Receta: Suavecito de Camote
+ANMI-0205,Alimentación (Mitos),"""Solo la suplementación cura"""
+ANMI-0206,Alimentación (Mitos),"""Solo la comida cura"""
+ANMI-0207,Alimentación (Bebés),Crecimiento y Apetito
+ANMI-0208,Alimentación (Gestantes),Postparto y Lactancia
+ANMI-0209,Alimentación (General),Disponibilidad de Alimentos
+ANMI-0210,Alimentación (General),Costo de Alimentos
+ANMI-0211,Alimentación (General),Papillas Industriales
+ANMI-0212,Alimentación (Mitos),"""Comer 2 cucharadas es muy poco"""
+ANMI-0213,Alimentación (Mitos),"""El hierro vegetal es igual"""
+ANMI-0214,Alimentación (Mitos),"""El bebé no mastica"""
+ANMI-0215,Alimentación (Mitos),"""El hierro estriñe"""
+ANMI-0216,Alimentación (Mitos),"""La sangrecita tiene toxinas"""
+ANMI-0217,Alimentación (Bebés),Acompañantes del Hierro
+ANMI-0218,Alimentación (Gestantes),Postparto (Suplemento)
+ANMI-0219,Alimentación (General),"""Alergias"""
+ANMI-0220,Alimentación (Bebés),Cantidad (Cuchara)
+ANMI-0221,Alimentación (Bebés),Cantidad (Plato)
+ANMI-0222,Alimentación (Bebés),Micronutrientes vs Gotas
+ANMI-0223,Alimentación (Bebés),Hierro Polimaltosado
+ANMI-0224,Alimentación (Bebés),Hierro Polimaltosado (Ventajas)
+ANMI-0225,Alimentación (Bebés),Alimentos Locales (Sierra)
+ANMI-0226,Alimentación (Bebés),Alimentos Locales (Selva)
+ANMI-0227,Alimentación (Gestantes),Alimentos Locales (Gestante)
+ANMI-0228,Alimentación (General),Doble Carga (Urbano)
+ANMI-0229,Alimentación (General),Hierro de la Quinua
+ANMI-0230,Alimentación (General),¿Qué es la Vitamina A?
+ANMI-0231,Alimentación (General),¿Qué es el Zinc?
+ANMI-0232,Alimentación (General),¿Qué es el Ácido Fólico?
+ANMI-0233,Alimentación (General),¿Qué es la Vitamina B12?
+ANMI-0234,Alimentación (General),Múltiples Causas
+ANMI-0235,Alimentación (General),Proteínas
+ANMI-0236,Alimentación (Gestantes),Hígado (Precaución)
+ANMI-0237,Alimentación (Gestantes),Refrigerio Saludable
+ANMI-0238,Alimentación (Bebés),Cuchara del Bebé
+ANMI-0239,Alimentación (Bebés),Presupuesto y Nutrición
+ANMI-0240,Alimentación (Bebés),Introducción de Alimentos
+ANMI-0241,Alimentación (General),Dieta Vegetariana
+ANMI-0242,Alimentación (General),Absorción (Resumen)
+ANMI-0243,Alimentación (Gestantes),Hitos (Postparto Control)
+ANMI-0244,Alimentación (Bebés),Inapetencia (Crecimiento)
+ANMI-0245,Alimentación (Bebés),Hierro de la Papa
+ANMI-0246,Alimentación (Mitos),"""Agüitas"""
+ANMI-0247,Alimentación (Mitos),"""Comer de todo"""
+ANMI-0248,Alimentación (General),Anemia en la Familia
+ANMI-0249,Alimentación (General),¿Qué es la Hemoglobina?
+ANMI-0250,Alimentación (General),¿Por qué el hierro animal es mejor?
+ANMI-0251,Alimentación (Mitos),"""La leche materna da anemia"""
+ANMI-0252,Alimentación (Bebés),Cantidad (Resumen)
+ANMI-0253,Alimentación (Gestantes),Cantidad (Resumen)
+ANMI-0254,Alimentación (General),Hierro y Zinc
+ANMI-0255,Alimentación (Mitos),"""La anemia no es importante"""
+ANMI-0256,Alimentación (Mitos),"""Mi hijo no come vísceras"""
+ANMI-0257,Alimentación (Bebés),Cuchara de Palo
+ANMI-0258,Alimentación (General),¿Qué es la Vitamina B6?
+ANMI-0259,Alimentación (General),¿Qué es el Cobre?
+ANMI-0260,Alimentación (General),¿Qué son los Fitatos?
+ANMI-0261,Alimentación (Bebés),¿Por qué comida espesa?
+ANMI-0262,Alimentación (Gestantes),Anemia y Preeclampsia
+ANMI-0263,Alimentación (Bebés),Hierro y Desarrollo Emocional
+ANMI-0264,Alimentación (Bebés),Miel
+ANMI-0265,Alimentación (Gestantes),Antojos
+ANMI-0266,Alimentación (Bebés),Horario del Suplemento
+ANMI-0267,Alimentación (Gestantes),Horario del Suplemento
+ANMI-0268,Alimentación (Mitos),"""La sangrecita es sucia"""
+ANMI-0269,Alimentación (Mitos),"""El suplemento es químico"""
+ANMI-0270,Alimentación (Bebés),Hierro y Vacunas
+ANMI-0271,Alimentación (General),"""Alergia"" al Hierro"
+ANMI-0272,Alimentación (Bebés),Receta: Postre de Sangrecita
+ANMI-0273,Alimentación (Bebés),Por qué no antes de 6m
+ANMI-0274,Alimentación (Bebés),¿Y si no tengo vísceras?
+ANMI-0275,Alimentación (Mitos),"""El hierro vuelve tontos"""
+ANMI-0276,Alimentación (Mitos),"""El suplemento es gratis"""
+ANMI-0277,Alimentación (Bebés),Dejar que coma solo
+ANMI-0278,Alimentación (Gestantes),Evitar (Pescado Crudo)
+ANMI-0279,Alimentación (Gestantes),Evitar (Queso fresco)
+ANMI-0280,Alimentación (General),Enfoque: Doble Propósito
+ANMI-0281,Alimentación (Bebés),Hito 6m (Resumen)
+ANMI-0282,Alimentación (Gestantes),Hito 14 semanas (Resumen)
+ANMI-0283,Alimentación (Bebés),Preparación de Alimentos
+ANMI-0284,Alimentación (General),Prioridad de Alimentos
+ANMI-0285,Alimentación (Mitos),"""Las verduras rojas curan"""
+ANMI-0286,Alimentación (Mitos),"""El hierro daña el estómago"""
+ANMI-0287,Alimentación (Mitos),"""La comida procesada es más fácil"""
+ANMI-0288,Alimentación (Mitos),"""El bebé decide qué comer"""
+ANMI-0289,Alimentación (General),Anemia y COVID-19
+ANMI-0290,Alimentación (General),Hierro y Cerebro (1000 días)
+ANMI-0291,Alimentación (General),Causa: Dieta Monótona
+ANMI-0292,Alimentación (General),Estrategia Integral
+ANMI-0293,Alimentación (Bebés),Hierro y Dientes (Repaso)
+ANMI-0294,Alimentación (Mitos),"""La sangrecita es para animales"""
+ANMI-0295,Alimentación (Mitos),"""El hígado es sucio"""
+ANMI-0296,Alimentación (Mitos),"""El bebé no lo necesita"""
+ANMI-0297,Alimentación (Mitos),"""El hierro da cólico"""
+ANMI-0298,Alimentación (General),Alimentos vs Suplementos (Recuperación)
+ANMI-0299,Alimentación (Bebés),Cantidad (Cucharada)
+ANMI-0300,Alimentación (Mitos),"""Las vitaminas son suficientes"""
+ANMI-0301,Alimentación (Mitos),"""El hierro en polvo es malo"""
+ANMI-0302,Alimentación (Bebés),¿Por qué desde los 6m?
+ANMI-0303,Alimentación (Gestantes),Hígado (Resumen)
+ANMI-0304,Alimentación (Bebés),¿Cómo sé si está listo?
+ANMI-0305,Alimentación (Bebés),¿Qué pasa si empecé antes?
+ANMI-0306,Alimentación (Bebés),¿Y si solo le doy verduras?
+ANMI-0307,Alimentación (Gestantes),Evitar (Exceso de Sal)
+ANMI-0308,Suplementación (General),¿Por qué suplementar?
+ANMI-0309,Suplementación (General),Comida vs. Suplemento
+ANMI-0310,Suplementación (General),¿Quién lo receta?
+ANMI-0311,Suplementación (General),¿Es gratis?
+ANMI-0312,Suplementación (Bebés),Inicio (Bebé a término)
+ANMI-0313,Suplementación (Bebés),Razón (4 meses)
+ANMI-0314,Suplementación (Bebés),Inicio (Bebé prematuro)
+ANMI-0315,Suplementación (Bebés),Dosis (Preventiva)
+ANMI-0316,Suplementación (Bebés),Duración (4-6 meses)
+ANMI-0317,Suplementación (Bebés),Continuación (6-11 meses)
+ANMI-0318,Suplementación (Bebés),Continuación (12-23 meses)
+ANMI-0319,Suplementación (Bebés),Continuación (2-3 años)
+ANMI-0320,Suplementación (Bebés),Continuación (3-5 años)
+ANMI-0321,Suplementación (MMN),¿Qué son?
+ANMI-0322,Suplementación (MMN),¿Cómo se preparan? (Paso 1)
+ANMI-0323,Suplementación (MMN),¿Cómo se preparan? (Paso 2)
+ANMI-0324,Suplementación (MMN),¿Cómo se preparan? (Paso 3)
+ANMI-0325,Suplementación (MMN),¿Cómo se preparan? (Paso 4)
+ANMI-0326,Suplementación (MMN),Errores (Líquidos)
+ANMI-0327,Suplementación (MMN),Errores (Caliente)
+ANMI-0328,Suplementación (MMN),Errores (Recalentar)
+ANMI-0329,Suplementación (MMN),Sabor y Olor
+ANMI-0330,Suplementación (MMN),Duración
+ANMI-0331,Suplementación (Gestantes),¿Qué tomar?
+ANMI-0332,Suplementación (Gestantes),¿Cuándo empezar?
+ANMI-0333,Suplementación (Gestantes),Duración
+ANMI-0334,Suplementación (Gestantes),Dosis (Inicio Tardío)
+ANMI-0335,Suplementación (Gestantes),¿Por qué Ácido Fólico?
+ANMI-0336,Suplementación (Adolescentes),¿Por qué?
+ANMI-0337,Suplementación (Adolescentes),Dosis Preventiva
+ANMI-0338,Suplementación (Adherencia),Heces Oscuras
+ANMI-0339,Suplementación (Adherencia),Vómitos / Náuseas (Bebé)
+ANMI-0340,Suplementación (Adherencia),Vómitos / Náuseas (Gestante)
+ANMI-0341,Suplementación (Adherencia),Dolor de Estómago / Cólico
+ANMI-0342,Suplementación (Adherencia),Estreñimiento (Bebé)
+ANMI-0343,Suplementación (Adherencia),Estreñimiento (Gestante)
+ANMI-0344,Suplementación (Adherencia),Mancha los Dientes
+ANMI-0345,Suplementación (Adherencia),Olvido de Dosis (Bebé)
+ANMI-0346,Suplementación (Adherencia),Olvido de Dosis (Gestante)
+ANMI-0347,Suplementación (Adherencia),Alternativa (Polimaltosado)
+ANMI-0348,Suplementación (Adherencia),Niño Escupe las Gotas
+ANMI-0349,Suplementación (Adherencia),¿Por qué tantos meses?
+ANMI-0350,Suplementación (Interacciones),Leche / Calcio
+ANMI-0351,Suplementación (Interacciones),Antiácidos
+ANMI-0352,Suplementación (Interacciones),Té / Café / Cafeína
+ANMI-0353,Suplementación (Interacciones),Fibra / Cereales
+ANMI-0354,Suplementación (Interacciones),Antibióticos
+ANMI-0355,Suplementación (Interacciones),Vitamina C
+ANMI-0356,Suplementación (Tratamiento),Dosis de Tratamiento
+ANMI-0357,Suplementación (Tratamiento),Duración del Tratamiento
+ANMI-0358,Suplementación (Tratamiento),Control del Tratamiento
+ANMI-0359,Suplementación (Tratamiento),Gestante con Anemia
+ANMI-0360,Suplementación (Tratamiento),Gestante (Anemia Severa)
+ANMI-0361,Suplementación (Abandono),Suspensión (Enfermedad)
+ANMI-0362,Suplementación (Abandono),Reinicio (Menos 3 meses)
+ANMI-0363,Suplementación (Abandono),Reinicio (Más 3 meses)
+ANMI-0364,Suplementación (Abandono),No mejora
+ANMI-0365,Suplementación (General),Almacenamiento
+ANMI-0366,Suplementación (General),Higiene del Dosificador
+ANMI-0367,Suplementación (General),Prevención vs Tratamiento (Repaso)
+ANMI-0368,Tratamiento (Niños),Definición y Diferencia
+ANMI-0369,Tratamiento (Niños),Dosis Estándar (Referencia)
+ANMI-0370,Tratamiento (Niños),Duración Obligatoria
+ANMI-0371,Tratamiento (Niños),Primer Control (1 mes)
+ANMI-0372,Tratamiento (Niños),Controles de Seguimiento
+ANMI-0373,Tratamiento (Niños),Criterio de Alta
+ANMI-0374,Tratamiento (Niños),Manejo de Malestares
+ANMI-0375,Tratamiento (Niños),Falta de Respuesta
+ANMI-0376,Tratamiento (Niños),Anemia Severa
+ANMI-0377,Tratamiento (Gestantes),Dosis Terapéutica
+ANMI-0378,Tratamiento (Gestantes),Duración y Controles
+ANMI-0379,Tratamiento (Gestantes),Hierro Endovenoso
+ANMI-0380,Tratamiento (Adolescentes),Esquema Terapéutico
+ANMI-0381,Tratamiento (General),Adherencia (No olvidar)
+ANMI-0382,Tratamiento (General),Alimentación de Soporte
+ANMI-0383,Emergencia (Bebé),SIGNO DE PELIGRO
+ANMI-0384,Emergencia (Bebé),Fiebre Alta
+ANMI-0385,Emergencia (Bebé),Deshidratación
+ANMI-0386,Emergencia (Bebé),Rechazo alimentario
+ANMI-0387,Emergencia (Gestante),Signos de Alarma
+ANMI-0388,Emergencia (Gestante),Dolor / Presión
+ANMI-0389,Emergencia (Gestante),Movimiento Fetal
+ANMI-0390,Límite: Identidad,¿Quién eres?
+ANMI-0391,Límite: Diagnóstico,Petición de Diagnóstico
+ANMI-0392,Límite: Interpretación,Lectura de Análisis
+ANMI-0393,Límite: Receta Médica,Petición de Fármacos
+ANMI-0394,Límites: Dosis,Cálculo de Dosis
+ANMI-0395,Límites: Dietas,Planes Personalizados
+ANMI-0396,Límite: Reemplazo,"""Ya no iré al médico"""
+ANMI-0397,Límite: Otras enfermedades,Consultas generales
+ANMI-0398,Límites: Vacunas,Calendario de Vacunas
+ANMI-0399,Límite: Marcas,Recomendación Comercial
+ANMI-0400,Límites: Adultos (hombres),Anemia en hombres/ancianos
+ANMI-0401,Límite: Opinión,"""¿Qué opinas?"""
+ANMI-0402,Límite: Datos Personales,"""Guarda mi información"""
+ANMI-0403,Límites: Multimedia,Fotos/Audios
+ANMI-0404,Límites: Ubicación,"""Dónde está la posta"""
+ANMI-0405,Límites: Denuncias,Maltrato / Negligencia
+ANMI-0406,Límites: Salud Mental,Depresión Postparto
+ANMI-0407,Límite: Rumores,"""Fake news"""
+ANMI-0408,Límite: Remedios Caseros,Curas milagrosas
+ANMI-0409,Límite: Incoherencias,Texto sin sentido
+ANMI-0410,Límite: Insultos/Agresión,Lenguaje ofensivo
+ANMI-0411,Límite: Fuera de Contexto,Tareas escolares
+ANMI-0412,"Límite: ""Emergencia"" Social",Violencia / Abuso

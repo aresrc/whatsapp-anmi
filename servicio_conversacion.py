@@ -9,6 +9,12 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from clasificador_google import (
+    ClasificadorConsultas,
+    ContextoClasificacion,
+    ErrorClasificacionGoogle,
+    SeleccionGoogle,
+)
 from conversaciones import ConversacionActiva, RepositorioConversaciones
 from motor_conocimientos import (
     ReglaConocimiento,
@@ -114,8 +120,30 @@ class ResultadoConversacion:
         return None
 
 
-def _serializar_resultado(resultado: ResultadoBusqueda) -> dict[str, Any]:
+ResultadoSeleccion = ResultadoBusqueda | SeleccionGoogle
+
+
+def _serializar_resultado(resultado: ResultadoSeleccion) -> dict[str, Any]:
     """Convierte un resultado del motor en datos seguros para UI/SQLite."""
+    if isinstance(resultado, SeleccionGoogle):
+        regla = resultado.regla
+        return {
+            "categoria": regla.categoria,
+            "subcategoria": regla.subcategoria,
+            "puntaje": None,
+            "margen": None,
+            "coincidencias_exactas": [],
+            "coincidencias_aproximadas": [],
+            "candidatos": [],
+            "motivo": "seleccion_google",
+            "documento": regla.documento,
+            "paginas": regla.paginas,
+            "enlace": regla.enlace,
+            **dict(resultado.evidencia),
+            "origen": "google",
+            "id_regla": resultado.id_regla,
+        }
+
     aproximadas = [
         asdict(coincidencia)
         for coincidencia in resultado.coincidencias_aproximadas
@@ -140,10 +168,10 @@ def _serializar_resultado(resultado: ResultadoBusqueda) -> dict[str, Any]:
     }
 
 
-def _es_emergencia(resultado: ResultadoBusqueda | None) -> bool:
+def _es_emergencia(resultado: ResultadoSeleccion | None) -> bool:
     if resultado is None:
         return False
-    return "emergencia" in normalizar_texto(resultado.categoria)
+    return "emergencia" in normalizar_texto(resultado.regla.categoria)
 
 
 def _extraer_meses(texto: str) -> tuple[bool, int | None]:
@@ -181,10 +209,16 @@ class ServicioConversacion:
         reglas: tuple[ReglaConocimiento, ...],
         *,
         horas_retencion: int = 24,
+        clasificador: ClasificadorConsultas | None = None,
     ) -> None:
         self.repositorio = repositorio
         self.reglas = reglas
         self.horas_retencion = horas_retencion
+        self.clasificador = clasificador
+
+    @property
+    def modo_clasificador(self) -> str:
+        return "google" if self.clasificador is not None else "reglas"
 
     def inicializar(self) -> None:
         self.repositorio.inicializar()
@@ -356,7 +390,11 @@ class ServicioConversacion:
         texto_inicial: str,
     ) -> ResultadoConversacion:
         respuestas: list[RespuestaConversacion] = []
-        resultado = buscar_mejor_regla(texto_inicial, self.reglas)
+        resultado = self._seleccionar_regla(
+            conversacion,
+            texto_inicial,
+            usar_contexto=False,
+        )
         if _es_emergencia(resultado):
             assert resultado is not None
             respuestas.extend(self._respuestas_desde_regla(resultado))
@@ -488,15 +526,10 @@ class ServicioConversacion:
                 (RespuestaConversacion(MENSAJE_SALUDO_ACTIVO),),
             )
 
-        categoria_anterior = self.repositorio.ultima_categoria(
-            conversacion.id
-        )
-        resultado = buscar_mejor_regla(
+        resultado = self._seleccionar_regla(
+            conversacion,
             texto,
-            self.reglas,
-            categoria_anterior=categoria_anterior,
-            meses_bebe=conversacion.meses_bebe,
-            alimentos_contexto=conversacion.alimentos_contexto,
+            usar_contexto=True,
         )
         if resultado is None:
             return self._resultado(
@@ -511,27 +544,97 @@ class ServicioConversacion:
             self._respuestas_desde_regla(resultado),
         )
 
+    def _seleccionar_regla(
+        self,
+        conversacion: ConversacionActiva,
+        texto: str,
+        *,
+        usar_contexto: bool,
+    ) -> ResultadoSeleccion | None:
+        categoria_anterior = (
+            self.repositorio.ultima_categoria(conversacion.id)
+            if usar_contexto
+            else None
+        )
+        if self.clasificador is not None:
+            contexto = self._crear_contexto_clasificacion(
+                conversacion,
+                categoria_anterior,
+            )
+            try:
+                seleccion = self.clasificador.seleccionar(texto, contexto)
+            except ErrorClasificacionGoogle as error:
+                logging.warning(
+                    "Gemini no pudo clasificar; se usarán reglas locales: %s",
+                    error,
+                )
+            else:
+                if seleccion is not None:
+                    return seleccion
+
+        if not usar_contexto:
+            return buscar_mejor_regla(texto, self.reglas)
+        return buscar_mejor_regla(
+            texto,
+            self.reglas,
+            categoria_anterior=categoria_anterior,
+            meses_bebe=conversacion.meses_bebe,
+            alimentos_contexto=conversacion.alimentos_contexto,
+        )
+
+    def _crear_contexto_clasificacion(
+        self,
+        conversacion: ConversacionActiva,
+        categoria_anterior: str | None,
+    ) -> ContextoClasificacion:
+        mensajes = self.repositorio.listar_mensajes(conversacion.id)
+        consultas_clasificadas: list[str] = []
+        usuario_pendiente: str | None = None
+        subcategoria_anterior: str | None = None
+
+        for mensaje in mensajes:
+            if mensaje.rol == "usuario":
+                usuario_pendiente = mensaje.contenido
+                continue
+            if mensaje.rol != "bot" or not mensaje.categoria:
+                continue
+            subcategoria_anterior = mensaje.subcategoria
+            if usuario_pendiente is not None:
+                consultas_clasificadas.append(usuario_pendiente[:1000])
+                usuario_pendiente = None
+
+        return ContextoClasificacion(
+            meses_bebe=conversacion.meses_bebe,
+            alimentos_contexto=conversacion.alimentos_contexto,
+            categoria_anterior=categoria_anterior,
+            subcategoria_anterior=subcategoria_anterior,
+            consultas_anteriores=tuple(consultas_clasificadas[-2:]),
+        )
+
     @staticmethod
     def _respuestas_desde_regla(
-        resultado: ResultadoBusqueda,
+        resultado: ResultadoSeleccion,
     ) -> tuple[RespuestaConversacion, ...]:
-        enlace = resultado.enlace.strip() or "No disponible"
+        regla = resultado.regla
+        enlace = regla.enlace.strip() or "No disponible"
+        puntaje = (
+            resultado.puntaje
+            if isinstance(resultado, ResultadoBusqueda)
+            else None
+        )
         return (
             RespuestaConversacion(
-                texto=f"Respuesta:\n{resultado.respuesta.strip()}",
-                categoria=resultado.categoria,
-                subcategoria=resultado.subcategoria,
-                puntaje=resultado.puntaje,
+                texto=f"{regla.respuesta.strip()}",
+                categoria=regla.categoria,
+                subcategoria=regla.subcategoria,
+                puntaje=puntaje,
                 evidencia=_serializar_resultado(resultado),
             ),
             RespuestaConversacion(
-                texto=f"Disclaimer:\n{resultado.disclaimer.strip()}"
+                texto=f"{regla.disclaimer.strip()}"
             ),
             RespuestaConversacion(
-                texto=f"Documento:\n{resultado.documento.strip()}"
-            ),
-            RespuestaConversacion(
-                texto=f"Página:\n{resultado.paginas.strip()}"
+                texto=f"Documento:\n{regla.documento.strip()} pag. {regla.paginas.strip()}"
             ),
             RespuestaConversacion(texto=f"Enlace:\n{enlace}"),
             RespuestaConversacion(texto=MENSAJE_RECORDATORIO_FIN),

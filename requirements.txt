@@ -1,3 +1,4 @@
 Flask
+google-genai
 requests
 python-dotenv

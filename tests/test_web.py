@@ -50,7 +50,10 @@ class WebhookTest(unittest.TestCase):
         self.directorio_temporal = tempfile.TemporaryDirectory()
         self.addCleanup(self.directorio_temporal.cleanup)
         self.ruta_db = Path(self.directorio_temporal.name) / "webhook.sqlite3"
-        self.aplicacion = webhook.crear_app(self.ruta_db)
+        self.aplicacion = webhook.crear_app(
+            self.ruta_db,
+            usar_google=False,
+        )
         self.aplicacion.config.update(TESTING=True)
         self.cliente = self.aplicacion.test_client()
 
@@ -258,7 +261,10 @@ class SimuladorWebTest(unittest.TestCase):
         self.directorio_temporal = tempfile.TemporaryDirectory()
         self.addCleanup(self.directorio_temporal.cleanup)
         self.ruta_db = Path(self.directorio_temporal.name) / "simulador.sqlite3"
-        self.aplicacion = simulador.crear_app_simulador(self.ruta_db)
+        self.aplicacion = simulador.crear_app_simulador(
+            self.ruta_db,
+            usar_google=False,
+        )
         self.aplicacion.config.update(TESTING=True)
         self.cliente = self.aplicacion.test_client()
         self.servicio = self.aplicacion.extensions["anmi_servicio"]

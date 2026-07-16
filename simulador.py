@@ -12,6 +12,7 @@ from typing import Any
 from dotenv import load_dotenv
 from flask import Flask, Response, make_response, redirect, render_template, request, url_for
 
+from clasificador_google import crear_clasificador_google
 from conversaciones import RepositorioConversaciones
 from motor_conocimientos import cargar_motor_conocimientos
 from servicio_conversacion import LimpiezaPeriodica, ServicioConversacion
@@ -83,15 +84,20 @@ def crear_app_simulador(
     ruta_db: str | Path | None = None,
     *,
     iniciar_limpieza: bool = False,
+    usar_google: bool = True,
 ) -> Flask:
     """Crea una instancia aislada y configurable para pruebas."""
     aplicacion = Flask(__name__)
     repositorio = RepositorioConversaciones(
         Path(ruta_db) if ruta_db is not None else RUTA_DB_SIMULADOR
     )
+    reglas = cargar_motor_conocimientos()
     servicio = ServicioConversacion(
         repositorio,
-        cargar_motor_conocimientos(),
+        reglas,
+        clasificador=(
+            crear_clasificador_google(reglas) if usar_google else None
+        ),
     )
     servicio.inicializar()
     aplicacion.extensions["anmi_servicio"] = servicio
@@ -195,6 +201,7 @@ def crear_app_simulador(
             "estado": "activo",
             "modo": "simulador",
             "reglas": len(servicio.reglas),
+            "clasificador": servicio.modo_clasificador,
         }, 200
 
     return aplicacion
