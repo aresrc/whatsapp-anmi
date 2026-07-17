@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS consultas_finalizadas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fecha_hora_cierre TEXT NOT NULL,
     meses_bebe INTEGER
-        CHECK (meses_bebe IS NULL OR meses_bebe BETWEEN 0 AND 59),
+        CHECK (meses_bebe IS NULL OR meses_bebe BETWEEN 0 AND 24),
     calificacion INTEGER NOT NULL CHECK (calificacion BETWEEN 1 AND 5)
 );
 

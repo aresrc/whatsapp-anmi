@@ -145,6 +145,38 @@ class ServicioConversacionTest(unittest.TestCase):
         self.assertEqual(mensajes[0].contenido, consulta_inicial)
         self.assertFalse(any(m.categoria for m in mensajes if m.rol == "bot"))
 
+    def test_saludo_nuevo_y_repetido_muestra_la_bienvenida(self) -> None:
+        with patch(
+            "servicio_conversacion.buscar_mejor_regla"
+        ) as buscar_regla:
+            inicio = self.servicio.procesar_mensaje(
+                "whatsapp",
+                "usuario-nuevo",
+                "Hola",
+                mensaje_externo_id="wamid.saludo-1",
+            )
+
+        self.assertEqual(inicio.estado, ESTADO_ESPERANDO_MESES)
+        self.assertEqual(
+            [respuesta.texto for respuesta in inicio.respuestas],
+            [MENSAJE_BIENVENIDA],
+        )
+        buscar_regla.assert_not_called()
+        self._confirmar(inicio)
+
+        saludo_repetido = self.servicio.procesar_mensaje(
+            "whatsapp",
+            "usuario-nuevo",
+            "hola",
+            mensaje_externo_id="wamid.saludo-2",
+        )
+
+        self.assertEqual(saludo_repetido.estado, ESTADO_ESPERANDO_MESES)
+        self.assertEqual(
+            [respuesta.texto for respuesta in saludo_repetido.respuestas],
+            [MENSAJE_BIENVENIDA],
+        )
+
     def test_no_aplica_omite_alimentos_y_deja_perfil_sin_meses(self) -> None:
         self._iniciar("sin-bebe", "hola")
 

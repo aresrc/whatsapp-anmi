@@ -155,9 +155,9 @@ def _validar_meses(meses_bebe: int | None) -> None:
     if meses_bebe is not None and (
         isinstance(meses_bebe, bool)
         or not isinstance(meses_bebe, int)
-        or not 0 <= meses_bebe <= 59
+        or not 6 <= meses_bebe <= 24
     ):
-        raise ValueError("meses_bebe debe ser un entero entre 0 y 59 o None")
+        raise ValueError("meses_bebe debe ser un entero entre 6 y 24 o None")
 
 
 def _validar_calificacion(calificacion: int | None) -> None:

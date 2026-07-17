@@ -31,11 +31,11 @@ ESTADO_ESPERANDO_CALIFICACION = "esperando_calificacion"
 
 MENSAJE_BIENVENIDA = (
     "👋 Hola, soy ANMI, tu Asistente Nutricional Materno infantil. 👶🥗\n\n"
-    "¿Cuántos meses tiene tu bebé? Responde con un número del 0 al 59 "
+    "¿Cuántos meses tiene tu bebé? Responde con un número del 6 al 24 "
     "o «no aplica»."
 )
 MENSAJE_MESES_INVALIDOS = (
-    "Por favor, indica un solo número del 0 al 59 para los meses de tu "
+    "Por favor, indica un solo número del 6 al 24 para los meses de tu "
     "bebé, o escribe «no aplica»."
 )
 MENSAJE_ALIMENTOS = "🍽️ ¿Qué alimentos logra comer actualmente tu bebé?"
@@ -190,7 +190,7 @@ def _extraer_meses(texto: str) -> tuple[bool, int | None]:
         return False, None
 
     meses = int(coincidencia.group(1))
-    return (0 <= meses <= 59), meses
+    return (0 <= meses <= 24), meses
 
 
 def _extraer_calificacion(texto: str) -> int | None:
@@ -390,14 +390,15 @@ class ServicioConversacion:
         texto_inicial: str,
     ) -> ResultadoConversacion:
         respuestas: list[RespuestaConversacion] = []
-        resultado = self._seleccionar_regla(
-            conversacion,
-            texto_inicial,
-            usar_contexto=False,
-        )
-        if _es_emergencia(resultado):
-            assert resultado is not None
-            respuestas.extend(self._respuestas_desde_regla(resultado))
+        if normalizar_texto(texto_inicial) not in SALUDOS:
+            resultado = self._seleccionar_regla(
+                conversacion,
+                texto_inicial,
+                usar_contexto=False,
+            )
+            if _es_emergencia(resultado):
+                assert resultado is not None
+                respuestas.extend(self._respuestas_desde_regla(resultado))
         respuestas.append(RespuestaConversacion(MENSAJE_BIENVENIDA))
         return self._resultado(
             conversacion.id,
@@ -435,6 +436,13 @@ class ServicioConversacion:
         conversacion: ConversacionActiva,
         texto: str,
     ) -> ResultadoConversacion:
+        if normalizar_texto(texto) in SALUDOS:
+            return self._resultado(
+                conversacion.id,
+                conversacion.estado,
+                (RespuestaConversacion(MENSAJE_BIENVENIDA),),
+            )
+
         valido, meses = _extraer_meses(texto)
         if not valido:
             return self._resultado(
