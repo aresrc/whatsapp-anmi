@@ -51,10 +51,19 @@ La interfaz queda disponible en `http://127.0.0.1:5002`. Para usar el valor
 python simulador.py --usar-puerto-prueba false
 ```
 
-El flujo solicita meses, alimentos cuando corresponde y atiende las consultas
-en bloques separados de respuesta, disclaimer, documento, página, enlace y
-recordatorio de cierre. Al escribir `fin`, solicita una calificación del 1 al 5
-y responde con un agradecimiento antes de cerrar la conversación.
+El flujo solicita la edad mediante botones para 6–12, 12–24 y 24–36 meses, tanto
+en WhatsApp como en el simulador. También acepta una edad exacta escrita entre
+6 y 36 meses o `no aplica`. Si el usuario precisa después la edad exacta, esta
+reemplaza al rango elegido y se conserva como contexto. Luego solicita alimentos
+cuando corresponde y
+atiende las consultas en bloques separados de respuesta, disclaimer, documento,
+página, enlace y recordatorio de cierre. Al escribir `fin`, solicita una
+calificación del 1 al 5 y responde con un agradecimiento antes de cerrar la
+conversación.
+
+Las solicitudes de recetas se resuelven con una receta MINSA revisada según la
+edad exacta. Si solo se eligió una franja amplia, ANMI solicita los meses antes
+de recomendar; para edades sin cobertura no reutiliza contenido de otro rango.
 
 ## Clasificación y caché de Gemini
 
@@ -82,7 +91,8 @@ python -m clasificador_google --verificar-cache
 - `conversaciones_activas` y `mensajes_activos` contienen temporalmente el
   identificador y el transcript necesarios para continuar el diálogo.
 - `consultas_finalizadas` y `categorias_consulta` conservan solo la fecha de
-  cierre en hora de Lima, meses, calificación y categorías respondidas.
+  cierre en hora de Lima, edad exacta o rango, calificación y categorías
+  respondidas.
 
 Al confirmar la entrega del agradecimiento, el transcript y el identificador
 se eliminan en la misma transacción. Las sesiones abandonadas se eliminan

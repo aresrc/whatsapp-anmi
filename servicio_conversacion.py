@@ -26,17 +26,39 @@ from motor_conocimientos import (
 
 ESTADO_ESPERANDO_MESES = "esperando_meses"
 ESTADO_ESPERANDO_ALIMENTOS = "esperando_alimentos"
+ESTADO_ESPERANDO_EDAD_RECETA = "esperando_edad_receta"
 ESTADO_LISTA = "lista"
 ESTADO_ESPERANDO_CALIFICACION = "esperando_calificacion"
 
+
+@dataclass(frozen=True)
+class OpcionRespuesta:
+    """Opción interactiva que un adaptador puede presentar como botón."""
+
+    id: str
+    titulo: str
+
+
+OPCIONES_EDAD = (
+    OpcionRespuesta("edad_6_12", "6 a 12 meses"),
+    OpcionRespuesta("edad_12_24", "12 a 24 meses"),
+    OpcionRespuesta("edad_24_36", "24 a 36 meses"),
+)
+RANGOS_EDAD_POR_OPCION = {
+    "edad_6_12": "6-12",
+    "edad_12_24": "12-24",
+    "edad_24_36": "24-36",
+}
+TITULOS_OPCIONES = {opcion.id: opcion.titulo for opcion in OPCIONES_EDAD}
+
 MENSAJE_BIENVENIDA = (
     "👋 Hola, soy ANMI, tu Asistente Nutricional Materno infantil. 👶🥗\n\n"
-    "¿Cuántos meses tiene tu bebé? Responde con un número del 6 al 24 "
-    "o «no aplica»."
+    "¿Qué edad tiene tu bebé? Elige un rango o responde con su edad exacta "
+    "en meses (del 6 al 36). También puedes escribir «no aplica»."
 )
 MENSAJE_MESES_INVALIDOS = (
-    "Por favor, indica un solo número del 6 al 24 para los meses de tu "
-    "bebé, o escribe «no aplica»."
+    "Por favor, elige un rango, indica un solo número del 6 al 36 para los "
+    "meses de tu bebé, o escribe «no aplica»."
 )
 MENSAJE_ALIMENTOS = "🍽️ ¿Qué alimentos logra comer actualmente tu bebé?"
 MENSAJE_ALIMENTOS_INVALIDOS = (
@@ -79,6 +101,19 @@ MENSAJE_AGRADECIMIENTO = (
     "🙏✨ ¡Gracias por calificar tu experiencia con ANMI! 💚 "
     "Puedes volver a usar este chat cuando lo necesites. 👋😊"
 )
+MENSAJE_RECETA_SIN_EDAD = (
+    "Para recomendar una receta MINSA revisada necesito conocer la edad del "
+    "bebé con precisión. Responde con un solo número de meses, entre 6 y 36."
+)
+MENSAJE_RECETA_SIN_COBERTURA = (
+    "No tengo una receta MINSA revisada en la base de conocimientos para esa "
+    "edad. No recomendaré una receta de otro rango. Consulta con un "
+    "profesional de salud para recibir una indicación adecuada."
+)
+MENSAJE_EDAD_ACTUALIZADA = (
+    "He actualizado la edad del bebé a {meses} meses. "
+    "Ahora escribe tu consulta sobre nutrición o anemia."
+)
 
 SALUDOS = {
     "hola",
@@ -98,6 +133,7 @@ class RespuestaConversacion:
     subcategoria: str | None = None
     puntaje: float | None = None
     evidencia: dict[str, Any] = field(default_factory=dict)
+    opciones: tuple[OpcionRespuesta, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -190,7 +226,39 @@ def _extraer_meses(texto: str) -> tuple[bool, int | None]:
         return False, None
 
     meses = int(coincidencia.group(1))
-    return (0 <= meses <= 24), meses
+    return (6 <= meses <= 36), meses
+
+
+def _extraer_rango_edad(texto: str) -> str | None:
+    if texto in RANGOS_EDAD_POR_OPCION:
+        return RANGOS_EDAD_POR_OPCION[texto]
+    normalizado = normalizar_texto(texto)
+    for opcion in OPCIONES_EDAD:
+        if normalizado == normalizar_texto(opcion.titulo):
+            return RANGOS_EDAD_POR_OPCION[opcion.id]
+    return None
+
+
+def _respuesta_bienvenida() -> RespuestaConversacion:
+    return RespuestaConversacion(
+        MENSAJE_BIENVENIDA,
+        opciones=OPCIONES_EDAD,
+    )
+
+
+def _resultado_forzado(
+    regla: ReglaConocimiento,
+    motivo: str,
+    coincidencias: tuple[str, ...],
+) -> ResultadoBusqueda:
+    return ResultadoBusqueda(
+        regla=regla,
+        puntaje=100.0,
+        margen=1.0,
+        coincidencias_exactas=coincidencias,
+        coincidencias_aproximadas=(),
+        motivo=motivo,
+    )
 
 
 def _extraer_calificacion(texto: str) -> int | None:
@@ -313,6 +381,8 @@ class ServicioConversacion:
             return self._procesar_meses(conversacion, texto)
         if conversacion.estado == ESTADO_ESPERANDO_ALIMENTOS:
             return self._procesar_alimentos(conversacion, texto)
+        if conversacion.estado == ESTADO_ESPERANDO_EDAD_RECETA:
+            return self._procesar_edad_receta(conversacion, texto)
         if conversacion.estado == ESTADO_ESPERANDO_CALIFICACION:
             return self._procesar_calificacion(conversacion, texto)
 
@@ -339,10 +409,11 @@ class ServicioConversacion:
         texto: str,
         mensaje_externo_id: str | None,
     ) -> bool:
+        contenido = TITULOS_OPCIONES.get(texto, texto)
         return self.repositorio.registrar_mensaje(
             conversacion.id,
             "usuario",
-            texto,
+            contenido,
             mensaje_externo_id=mensaje_externo_id,
         )
 
@@ -399,7 +470,7 @@ class ServicioConversacion:
             if _es_emergencia(resultado):
                 assert resultado is not None
                 respuestas.extend(self._respuestas_desde_regla(resultado))
-        respuestas.append(RespuestaConversacion(MENSAJE_BIENVENIDA))
+        respuestas.append(_respuesta_bienvenida())
         return self._resultado(
             conversacion.id,
             ESTADO_ESPERANDO_MESES,
@@ -440,7 +511,21 @@ class ServicioConversacion:
             return self._resultado(
                 conversacion.id,
                 conversacion.estado,
-                (RespuestaConversacion(MENSAJE_BIENVENIDA),),
+                (_respuesta_bienvenida(),),
+            )
+
+        rango_edad = _extraer_rango_edad(texto)
+        if rango_edad is not None:
+            self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_ESPERANDO_ALIMENTOS,
+                meses_bebe=None,
+                rango_edad_bebe=rango_edad,
+            )
+            return self._resultado(
+                conversacion.id,
+                ESTADO_ESPERANDO_ALIMENTOS,
+                (RespuestaConversacion(MENSAJE_ALIMENTOS),),
             )
 
         valido, meses = _extraer_meses(texto)
@@ -456,6 +541,7 @@ class ServicioConversacion:
                 conversacion.id,
                 estado=ESTADO_LISTA,
                 meses_bebe=None,
+                rango_edad_bebe=None,
             )
             return self._resultado(
                 conversacion.id,
@@ -467,6 +553,7 @@ class ServicioConversacion:
             conversacion.id,
             estado=ESTADO_ESPERANDO_ALIMENTOS,
             meses_bebe=meses,
+            rango_edad_bebe=None,
         )
         return self._resultado(
             conversacion.id,
@@ -479,6 +566,15 @@ class ServicioConversacion:
         conversacion: ConversacionActiva,
         texto: str,
     ) -> ResultadoConversacion:
+        if self._es_solicitud_receta(texto):
+            conversacion = self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_LISTA,
+            )
+            receta = self._procesar_solicitud_receta(conversacion, texto)
+            assert receta is not None
+            return receta
+
         alimentos = texto.strip()
         if not alimentos or len(alimentos) > 500:
             return self._resultado(
@@ -497,6 +593,32 @@ class ServicioConversacion:
             ESTADO_LISTA,
             (RespuestaConversacion(MENSAJE_LISTA),),
         )
+
+    def _procesar_edad_receta(
+        self,
+        conversacion: ConversacionActiva,
+        texto: str,
+    ) -> ResultadoConversacion:
+        valido, meses = _extraer_meses(texto)
+        if not valido or meses is None:
+            return self._resultado(
+                conversacion.id,
+                ESTADO_ESPERANDO_EDAD_RECETA,
+                (RespuestaConversacion(MENSAJE_RECETA_SIN_EDAD),),
+            )
+
+        conversacion = self.repositorio.actualizar_conversacion(
+            conversacion.id,
+            estado=ESTADO_LISTA,
+            meses_bebe=meses,
+            rango_edad_bebe=None,
+        )
+        receta = self._procesar_solicitud_receta(
+            conversacion,
+            f"recomiéndame una receta para {meses} meses",
+        )
+        assert receta is not None
+        return receta
 
     def _procesar_calificacion(
         self,
@@ -532,6 +654,40 @@ class ServicioConversacion:
                 conversacion.id,
                 conversacion.estado,
                 (RespuestaConversacion(MENSAJE_SALUDO_ACTIVO),),
+            )
+
+        edad_valida, meses = _extraer_meses(texto)
+        if edad_valida and meses is not None:
+            conversacion = self.repositorio.actualizar_perfil(
+                conversacion.id,
+                meses_bebe=meses,
+                rango_edad_bebe=None,
+            )
+            return self._resultado(
+                conversacion.id,
+                conversacion.estado,
+                (
+                    RespuestaConversacion(
+                        MENSAJE_EDAD_ACTUALIZADA.format(meses=meses)
+                    ),
+                ),
+            )
+
+        conversacion = self._actualizar_edad_explicita(
+            conversacion,
+            texto,
+        )
+
+        receta = self._procesar_solicitud_receta(conversacion, texto)
+        if receta is not None:
+            return receta
+
+        resultado_hemoglobina = self._seleccionar_hemoglobina_general(texto)
+        if resultado_hemoglobina is not None:
+            return self._resultado(
+                conversacion.id,
+                conversacion.estado,
+                self._respuestas_desde_regla(resultado_hemoglobina),
             )
 
         resultado = self._seleccionar_regla(
@@ -587,6 +743,7 @@ class ServicioConversacion:
             self.reglas,
             categoria_anterior=categoria_anterior,
             meses_bebe=conversacion.meses_bebe,
+            rango_edad_bebe=conversacion.rango_edad_bebe,
             alimentos_contexto=conversacion.alimentos_contexto,
         )
 
@@ -613,11 +770,208 @@ class ServicioConversacion:
 
         return ContextoClasificacion(
             meses_bebe=conversacion.meses_bebe,
+            rango_edad_bebe=conversacion.rango_edad_bebe,
             alimentos_contexto=conversacion.alimentos_contexto,
             categoria_anterior=categoria_anterior,
             subcategoria_anterior=subcategoria_anterior,
             consultas_anteriores=tuple(consultas_clasificadas[-2:]),
         )
+
+    def _seleccionar_hemoglobina_general(
+        self,
+        texto: str,
+    ) -> ResultadoBusqueda | None:
+        normalizado = normalizar_texto(texto)
+        tokens = set(normalizado.split())
+        if not ({"hemoglobina", "hb"} & tokens):
+            return None
+        senales_interpretacion = {
+            "alta",
+            "alto",
+            "analisis",
+            "baja",
+            "bajo",
+            "diagnostico",
+            "examen",
+            "nivel",
+            "resultado",
+            "salio",
+            "valor",
+        }
+        if tokens & senales_interpretacion or any(
+            token.isdigit() for token in tokens
+        ):
+            return None
+        regla = next(
+            (
+                candidata
+                for candidata in self.reglas
+                if normalizar_texto(candidata.subcategoria).startswith(
+                    "definicion la hemoglobina"
+                )
+            ),
+            None,
+        )
+        if regla is None:
+            return None
+        return _resultado_forzado(
+            regla,
+            "seleccion_forzada_hemoglobina_general",
+            ("hemoglobina",),
+        )
+
+    def _procesar_solicitud_receta(
+        self,
+        conversacion: ConversacionActiva,
+        texto: str,
+    ) -> ResultadoConversacion | None:
+        if not self._es_solicitud_receta(texto):
+            return None
+
+        normalizado = normalizar_texto(texto)
+        meses_explicitos = self._extraer_meses_consulta(normalizado)
+        if meses_explicitos is not None and 6 <= meses_explicitos <= 36:
+            conversacion = self.repositorio.actualizar_perfil(
+                conversacion.id,
+                meses_bebe=meses_explicitos,
+                rango_edad_bebe=None,
+            )
+        meses_referencia = (
+            meses_explicitos
+            if meses_explicitos is not None
+            else conversacion.meses_bebe
+        )
+        rango = self._rango_para_meses(meses_referencia)
+        if (
+            meses_referencia is None
+            and conversacion.rango_edad_bebe not in {"6-8", "9-11", "12-23"}
+        ):
+            self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_ESPERANDO_EDAD_RECETA,
+            )
+            respuesta = RespuestaConversacion(MENSAJE_RECETA_SIN_EDAD)
+            return self._resultado(
+                conversacion.id,
+                ESTADO_ESPERANDO_EDAD_RECETA,
+                (respuesta,),
+            )
+        if rango is None and conversacion.rango_edad_bebe in {
+            "6-8",
+            "9-11",
+            "12-23",
+        }:
+            rango = conversacion.rango_edad_bebe
+        if rango is None:
+            respuesta = RespuestaConversacion(MENSAJE_RECETA_SIN_COBERTURA)
+            return self._resultado(
+                conversacion.id,
+                conversacion.estado,
+                (respuesta,),
+            )
+
+        categoria_objetivo = f"recetas minsa {rango.replace('-', ' ')}m"
+        regla = next(
+            (
+                candidata
+                for candidata in self.reglas
+                if normalizar_texto(candidata.categoria)
+                == categoria_objetivo
+            ),
+            None,
+        )
+        if regla is None:
+            respuesta = RespuestaConversacion(MENSAJE_RECETA_SIN_COBERTURA)
+            return self._resultado(
+                conversacion.id,
+                conversacion.estado,
+                (respuesta,),
+            )
+        resultado = _resultado_forzado(
+            regla,
+            "seleccion_forzada_receta_minsa_por_edad",
+            ("receta", rango),
+        )
+        return self._resultado(
+            conversacion.id,
+            conversacion.estado,
+            self._respuestas_desde_regla(resultado),
+        )
+
+    @staticmethod
+    def _es_solicitud_receta(texto: str) -> bool:
+        tokens = set(normalizar_texto(texto).split())
+        verbos_recomendacion = {
+            "dame",
+            "quiero",
+            "recomienda",
+            "recomendacion",
+            "recomendar",
+            "recomiendas",
+            "recomiendame",
+            "sugiere",
+            "sugiereme",
+            "sugerencia",
+        }
+        return bool(
+            {"receta", "recetas"} & tokens
+            and tokens & verbos_recomendacion
+        )
+
+    def _actualizar_edad_explicita(
+        self,
+        conversacion: ConversacionActiva,
+        texto: str,
+    ) -> ConversacionActiva:
+        texto_normalizado = normalizar_texto(texto)
+        senales_edad = {
+            "bebe",
+            "edad",
+            "hija",
+            "hijo",
+            "nina",
+            "nino",
+            "tiene",
+        }
+        if not set(texto_normalizado.split()) & senales_edad:
+            return conversacion
+        meses = self._extraer_meses_consulta(texto_normalizado)
+        if meses is None or not 6 <= meses <= 36:
+            return conversacion
+        if (
+            conversacion.meses_bebe == meses
+            and conversacion.rango_edad_bebe is None
+        ):
+            return conversacion
+        return self.repositorio.actualizar_perfil(
+            conversacion.id,
+            meses_bebe=meses,
+            rango_edad_bebe=None,
+        )
+
+    @staticmethod
+    def _extraer_meses_consulta(texto_normalizado: str) -> int | None:
+        coincidencia = re.search(
+            r"\b(\d{1,2})\s*(?:mes|meses|m)\b",
+            texto_normalizado,
+        )
+        if coincidencia:
+            return int(coincidencia.group(1))
+        coincidencia = re.search(
+            r"\b(\d{1,2})\s*(?:ano|anos)\b",
+            texto_normalizado,
+        )
+        return int(coincidencia.group(1)) * 12 if coincidencia else None
+
+    @staticmethod
+    def _rango_para_meses(meses: int | None) -> str | None:
+        if meses is None:
+            return None
+        for rango in ("6-8", "9-11", "12-23"):
+            minimo, maximo = (int(valor) for valor in rango.split("-"))
+            if minimo <= meses <= maximo:
+                return rango
+        return None
 
     @staticmethod
     def _respuestas_desde_regla(
@@ -641,10 +995,7 @@ class ServicioConversacion:
             RespuestaConversacion(
                 texto=f"{regla.disclaimer.strip()}"
             ),
-            RespuestaConversacion(
-                texto=f"Documento:\n{regla.documento.strip()} pag. {regla.paginas.strip()}"
-            ),
-            RespuestaConversacion(texto=f"Fuente:\n{enlace}"),
+            RespuestaConversacion(texto=f"Fuente:\n {regla.documento.strip()} pag. {regla.paginas.strip()}\n {enlace}"),
             RespuestaConversacion(texto=MENSAJE_RECORDATORIO_FIN),
         )
 

@@ -15,7 +15,12 @@ from flask import Flask, Response, make_response, redirect, render_template, req
 from clasificador_google import crear_clasificador_google
 from conversaciones import RepositorioConversaciones
 from motor_conocimientos import cargar_motor_conocimientos
-from servicio_conversacion import LimpiezaPeriodica, ServicioConversacion
+from servicio_conversacion import (
+    ESTADO_ESPERANDO_MESES,
+    OPCIONES_EDAD,
+    LimpiezaPeriodica,
+    ServicioConversacion,
+)
 
 
 load_dotenv()
@@ -128,6 +133,8 @@ def crear_app_simulador(
                 depuracion=_preparar_depuracion(depuracion),
                 error=error,
                 usuario_id=usuario[-8:],
+                estado_esperando_meses=ESTADO_ESPERANDO_MESES,
+                opciones_edad=OPCIONES_EDAD,
             )
         )
         if nueva_cookie:

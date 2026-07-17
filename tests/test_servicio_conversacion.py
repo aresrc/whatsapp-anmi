@@ -11,10 +11,15 @@ from unittest.mock import MagicMock, patch
 
 from clasificador_google import ErrorClasificacionGoogle, SeleccionGoogle
 from conversaciones import RepositorioConversaciones
-from motor_conocimientos import ReglaConocimiento, ResultadoBusqueda
+from motor_conocimientos import (
+    ReglaConocimiento,
+    ResultadoBusqueda,
+    cargar_motor_conocimientos,
+)
 from servicio_conversacion import (
     ESTADO_ESPERANDO_ALIMENTOS,
     ESTADO_ESPERANDO_CALIFICACION,
+    ESTADO_ESPERANDO_EDAD_RECETA,
     ESTADO_ESPERANDO_MESES,
     ESTADO_LISTA,
     MENSAJE_ALIMENTOS,
@@ -26,7 +31,10 @@ from servicio_conversacion import (
     MENSAJE_LISTA,
     MENSAJE_LISTA_SIN_BEBE,
     MENSAJE_MESES_INVALIDOS,
+    MENSAJE_RECETA_SIN_COBERTURA,
+    MENSAJE_RECETA_SIN_EDAD,
     MENSAJE_RECORDATORIO_FIN,
+    OPCIONES_EDAD,
     ServicioConversacion,
 )
 
@@ -125,6 +133,7 @@ class ServicioConversacionTest(unittest.TestCase):
 
         self.assertEqual(inicio.estado, ESTADO_ESPERANDO_MESES)
         self.assertEqual([r.texto for r in inicio.respuestas], [MENSAJE_BIENVENIDA])
+        self.assertEqual(inicio.respuestas[0].opciones, OPCIONES_EDAD)
         buscar.assert_called_once_with(consulta_inicial, self.reglas)
         self.assertEqual(self._confirmar(inicio), 1)
 
@@ -192,10 +201,13 @@ class ServicioConversacionTest(unittest.TestCase):
         )
         self.assertIsNotNone(conversacion)
         self.assertIsNone(conversacion.meses_bebe)
+        self.assertIsNone(conversacion.rango_edad_bebe)
         self.assertIsNone(conversacion.alimentos_contexto)
 
     def test_meses_y_alimentos_invalidos_no_avanzan_el_estado(self) -> None:
-        for indice, texto in enumerate(("", "-1", "60", "6 y medio", "dos")):
+        for indice, texto in enumerate(
+            ("", "-1", "5", "37", "60", "6 y medio", "dos")
+        ):
             with self.subTest(meses=texto):
                 usuario = f"meses-invalidos-{indice}"
                 self._iniciar(usuario, "hola")
@@ -238,6 +250,26 @@ class ServicioConversacionTest(unittest.TestCase):
         self.assertEqual(conversacion.meses_bebe, 6)
         self.assertEqual(conversacion.alimentos_contexto, "avena y huevo")
 
+    def test_boton_edad_guarda_rango_y_transcript_legible(self) -> None:
+        self._iniciar("rango", "hola")
+
+        edad = self.servicio.procesar_mensaje(
+            "simulador",
+            "rango",
+            "edad_12_24",
+            mensaje_externo_id="wamid.edad",
+        )
+
+        self.assertEqual(edad.estado, ESTADO_ESPERANDO_ALIMENTOS)
+        conversacion = self.repositorio.obtener_conversacion(
+            "simulador",
+            "rango",
+        )
+        self.assertIsNone(conversacion.meses_bebe)
+        self.assertEqual(conversacion.rango_edad_bebe, "12-24")
+        mensajes = self.servicio.obtener_mensajes("simulador", "rango")
+        self.assertEqual(mensajes[-1].contenido, "12 a 24 meses")
+
     def test_consulta_recibe_contexto_confirmado_de_categoria_y_perfil(self) -> None:
         self._completar_onboarding("contexto", meses="8")
         primer_resultado = crear_resultado(categoria="Alimentación")
@@ -265,6 +297,7 @@ class ServicioConversacionTest(unittest.TestCase):
             {
                 "categoria_anterior": "Alimentación",
                 "meses_bebe": 8,
+                "rango_edad_bebe": None,
                 "alimentos_contexto": "lentejas y pollo",
             },
         )
@@ -358,6 +391,7 @@ class ServicioConversacionTest(unittest.TestCase):
         )
         contexto = clasificador.seleccionar.call_args_list[1].args[1]
         self.assertEqual(contexto.meses_bebe, 8)
+        self.assertIsNone(contexto.rango_edad_bebe)
         self.assertEqual(contexto.alimentos_contexto, "lentejas y pollo")
         self.assertEqual(contexto.categoria_anterior, "Alimentación")
         self.assertEqual(contexto.subcategoria_anterior, "Hierro")
@@ -366,6 +400,225 @@ class ServicioConversacionTest(unittest.TestCase):
             ("alimentos con hierro",),
         )
         self.assertEqual(segunda.respuestas[0].categoria, "Anemia")
+
+    def test_receta_forzada_respeta_rango_edad_y_edad_explicita(self) -> None:
+        self.servicio.reglas = cargar_motor_conocimientos()
+        casos = (
+            ("receta-6", "7", "Purecito Nutritivo"),
+            ("receta-9", "10", "Lomo de Sangrecita"),
+            ("receta-12", "18", "Locro de Zapallo"),
+        )
+        for usuario, meses, subcategoria in casos:
+            with self.subTest(meses=meses):
+                self._iniciar(usuario, "hola")
+                edad = self.servicio.procesar_mensaje(
+                    "simulador", usuario, meses
+                )
+                self._confirmar(edad)
+                alimentos = self.servicio.procesar_mensaje(
+                    "simulador", usuario, "avena y huevo"
+                )
+                self._confirmar(alimentos)
+                receta = self.servicio.procesar_mensaje(
+                    "simulador", usuario, "recomendación de recetas"
+                )
+                self.assertEqual(
+                    receta.respuestas[0].subcategoria,
+                    subcategoria,
+                )
+                self.assertEqual(
+                    receta.respuestas[0].evidencia["motivo"],
+                    "seleccion_forzada_receta_minsa_por_edad",
+                )
+
+        explicita = self.servicio.procesar_mensaje(
+            "simulador",
+            "receta-6",
+            "recomiéndame una receta para 10 meses",
+        )
+        self.assertEqual(
+            explicita.respuestas[0].subcategoria,
+            "Lomo de Sangrecita",
+        )
+
+        self._iniciar("receta-rango", "hola")
+        rango = self.servicio.procesar_mensaje(
+            "simulador", "receta-rango", "edad_6_12"
+        )
+        self._confirmar(rango)
+        alimentos = self.servicio.procesar_mensaje(
+            "simulador", "receta-rango", "avena y huevo"
+        )
+        self._confirmar(alimentos)
+        requiere_exacta = self.servicio.procesar_mensaje(
+            "simulador", "receta-rango", "recomiéndame una receta"
+        )
+        self.assertEqual(
+            requiere_exacta.respuestas[0].texto,
+            MENSAJE_RECETA_SIN_EDAD,
+        )
+        self.assertEqual(
+            requiere_exacta.estado,
+            ESTADO_ESPERANDO_EDAD_RECETA,
+        )
+
+    def test_receta_usa_edad_exacta_respondida_despues_del_rango(self) -> None:
+        self.servicio.reglas = cargar_motor_conocimientos()
+        usuario = "receta-contexto-exacto"
+        self._iniciar(usuario, "Hola")
+        rango = self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "edad_12_24",
+        )
+        self._confirmar(rango)
+
+        solicitud = self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "Dame una receta",
+        )
+        self._confirmar(solicitud)
+        self.assertEqual(solicitud.estado, ESTADO_ESPERANDO_EDAD_RECETA)
+        self.assertEqual(solicitud.respuestas[0].texto, MENSAJE_RECETA_SIN_EDAD)
+
+        antes_edad = self.repositorio.obtener_conversacion(
+            "simulador",
+            usuario,
+        )
+        self.assertIsNone(antes_edad.alimentos_contexto)
+        self.assertEqual(antes_edad.rango_edad_bebe, "12-24")
+
+        receta = self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "8",
+        )
+        self.assertEqual(receta.estado, ESTADO_LISTA)
+        self.assertEqual(receta.respuestas[0].categoria, "Recetas MINSA (6-8m)")
+        self.assertEqual(receta.respuestas[0].subcategoria, "Purecito Nutritivo")
+        self.assertNotIn("Locro de Zapallo", receta.respuestas[0].texto)
+
+        actualizada = self.repositorio.obtener_conversacion(
+            "simulador",
+            usuario,
+        )
+        self.assertEqual(actualizada.meses_bebe, 8)
+        self.assertIsNone(actualizada.rango_edad_bebe)
+        self.assertIsNone(actualizada.alimentos_contexto)
+
+        self._confirmar(receta)
+        edad_repetida = self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "8",
+        )
+        self.assertIn("8 meses", edad_repetida.respuestas[0].texto)
+        self.assertIsNone(edad_repetida.respuestas[0].categoria)
+
+        otra = self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "Dame una receta",
+        )
+        self.assertEqual(otra.respuestas[0].categoria, "Recetas MINSA (6-8m)")
+
+    def test_edad_explicita_en_consulta_reemplaza_rango_del_contexto(self) -> None:
+        usuario = "contexto-edad-explicita"
+        self._iniciar(usuario, "Hola")
+        rango = self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "edad_12_24",
+        )
+        self._confirmar(rango)
+        alimentos = self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "avena",
+        )
+        self._confirmar(alimentos)
+        clasificador = MagicMock()
+        clasificador.seleccionar.return_value = SeleccionGoogle(
+            id_regla="ANMI-0001",
+            regla=crear_resultado().regla,
+            evidencia={"origen": "google"},
+        )
+        self.servicio.clasificador = clasificador
+
+        self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "Mi bebé tiene 8 meses, ¿qué puede comer?",
+        )
+
+        contexto = clasificador.seleccionar.call_args.args[1]
+        self.assertEqual(contexto.meses_bebe, 8)
+        self.assertIsNone(contexto.rango_edad_bebe)
+        actualizada = self.repositorio.obtener_conversacion(
+            "simulador",
+            usuario,
+        )
+        self.assertEqual(actualizada.meses_bebe, 8)
+        self.assertIsNone(actualizada.rango_edad_bebe)
+
+    def test_receta_sin_edad_o_cobertura_no_inventa_contenido(self) -> None:
+        self.servicio.reglas = cargar_motor_conocimientos()
+        self._iniciar("receta-sin-edad", "hola")
+        sin_bebe = self.servicio.procesar_mensaje(
+            "simulador", "receta-sin-edad", "no aplica"
+        )
+        self._confirmar(sin_bebe)
+        sin_edad = self.servicio.procesar_mensaje(
+            "simulador",
+            "receta-sin-edad",
+            "recomiéndame una receta",
+        )
+        self.assertEqual(sin_edad.respuestas[0].texto, MENSAJE_RECETA_SIN_EDAD)
+
+        self._completar_onboarding("receta-24", meses="24")
+        fuera = self.servicio.procesar_mensaje(
+            "simulador", "receta-24", "recomiéndame una receta"
+        )
+        self.assertEqual(
+            fuera.respuestas[0].texto,
+            MENSAJE_RECETA_SIN_COBERTURA,
+        )
+        self.assertIsNone(fuera.respuestas[0].categoria)
+
+    def test_hemoglobina_general_se_fuerza_pero_resultados_no(self) -> None:
+        self.servicio.reglas = cargar_motor_conocimientos()
+        self._completar_onboarding("hemoglobina")
+
+        general = self.servicio.procesar_mensaje(
+            "simulador", "hemoglobina", "¿qué es la hemoglobina?"
+        )
+        self.assertEqual(
+            general.respuestas[0].subcategoria,
+            "¿Qué es la Hemoglobina?",
+        )
+        self.assertEqual(
+            general.respuestas[0].evidencia["motivo"],
+            "seleccion_forzada_hemoglobina_general",
+        )
+
+        limite = crear_resultado(
+            categoria="Límite: Interpretación",
+            subcategoria="Lectura de Análisis (Hemoglobina)",
+        )
+        with patch(
+            "servicio_conversacion.buscar_mejor_regla",
+            return_value=limite,
+        ):
+            resultado = self.servicio.procesar_mensaje(
+                "simulador",
+                "hemoglobina",
+                "mi resultado de hemoglobina es 8",
+            )
+        self.assertEqual(
+            resultado.respuestas[0].categoria,
+            "Límite: Interpretación",
+        )
 
     def test_error_gemini_usa_motor_anterior_como_fallback(self) -> None:
         self._completar_onboarding("fallback")

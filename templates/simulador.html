@@ -313,6 +313,18 @@
       background: var(--primario-oscuro);
     }
 
+    .opciones-edad {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.65rem;
+      padding: 0 1rem 0.8rem;
+    }
+
+    .opciones-edad form,
+    .opciones-edad .boton {
+      width: 100%;
+    }
+
     .pie-chat {
       display: flex;
       align-items: center;
@@ -486,6 +498,10 @@
         grid-template-columns: minmax(0, 1fr);
       }
 
+      .opciones-edad {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
       .pie-chat {
         align-items: flex-start;
         flex-direction: column;
@@ -584,6 +600,19 @@
             </div>
           {% endif %}
         </div>
+
+        {% if estado == estado_esperando_meses %}
+          <div class="opciones-edad" aria-label="Rangos de edad disponibles">
+            {% for opcion in opciones_edad %}
+              <form method="post" action="{{ url_for('enviar_mensaje_simulador') }}">
+                <input type="hidden" name="mensaje" value="{{ opcion.id }}">
+                <button class="boton boton--secundario" type="submit">
+                  {{ opcion.titulo }}
+                </button>
+              </form>
+            {% endfor %}
+          </div>
+        {% endif %}
 
         <form class="controles" method="post" action="{{ url_for('enviar_mensaje_simulador') }}">
           <label for="mensaje" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">

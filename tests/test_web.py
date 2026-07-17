@@ -11,6 +11,9 @@ import app as webhook
 import simulador
 from servicio_conversacion import (
     MENSAJE_AGRADECIMIENTO,
+    MENSAJE_BIENVENIDA,
+    MENSAJE_MESES_INVALIDOS,
+    OPCIONES_EDAD,
     RespuestaConversacion,
     ResultadoConversacion,
     ServicioConversacion,
@@ -35,6 +38,40 @@ def crear_payload(
                                     "id": mensaje_id,
                                     "type": "text",
                                     "text": {"body": texto},
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+
+def crear_payload_boton(
+    opcion_id: str = "edad_6_12",
+    *,
+    numero: str = "51987654321",
+    mensaje_id: str = "wamid.boton",
+) -> dict[str, object]:
+    return {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "from": numero,
+                                    "id": mensaje_id,
+                                    "type": "interactive",
+                                    "interactive": {
+                                        "type": "button_reply",
+                                        "button_reply": {
+                                            "id": opcion_id,
+                                            "title": "6 a 12 meses",
+                                        },
+                                    },
                                 }
                             ]
                         }
@@ -136,6 +173,45 @@ class WebhookTest(unittest.TestCase):
                     "numero": "51922222222",
                     "texto": "segundo mensaje",
                 },
+            ],
+        )
+
+        boton = webhook.extraer_mensajes_texto(crear_payload_boton())
+        self.assertEqual(
+            boton,
+            [
+                {
+                    "id": "wamid.boton",
+                    "numero": "51987654321",
+                    "texto": "edad_6_12",
+                }
+            ],
+        )
+
+    def test_enviar_respuesta_construye_tres_botones_de_edad(self) -> None:
+        respuesta = RespuestaConversacion(
+            MENSAJE_BIENVENIDA,
+            opciones=OPCIONES_EDAD,
+        )
+        with patch.object(
+            webhook,
+            "enviar_mensaje",
+            return_value=True,
+        ) as enviar:
+            enviado = webhook.enviar_respuesta("51987654321", respuesta)
+
+        self.assertTrue(enviado)
+        payload = enviar.call_args.args[1]
+        self.assertEqual(payload["type"], "interactive")
+        self.assertEqual(payload["interactive"]["type"], "button")
+        self.assertEqual(
+            payload["interactive"]["action"]["buttons"],
+            [
+                {
+                    "type": "reply",
+                    "reply": {"id": opcion.id, "title": opcion.titulo},
+                }
+                for opcion in OPCIONES_EDAD
             ],
         )
 
@@ -255,6 +331,55 @@ class WebhookTest(unittest.TestCase):
         servicio.confirmar_respuestas.assert_not_called()
         servicio.confirmar_finalizacion.assert_not_called()
 
+    def test_webhook_procesa_boton_y_guarda_rango(self) -> None:
+        with patch.object(webhook, "enviar_mensaje", return_value=True) as enviar:
+            bienvenida = self.cliente.post(
+                "/webhook",
+                json=crear_payload("hola", mensaje_id="wamid.inicio"),
+            )
+            edad = self.cliente.post(
+                "/webhook",
+                json=crear_payload_boton(
+                    "edad_12_24",
+                    mensaje_id="wamid.edad",
+                ),
+            )
+
+        self.assertEqual(bienvenida.status_code, 200)
+        self.assertEqual(edad.status_code, 200)
+        self.assertEqual(enviar.call_args_list[0].args[1]["type"], "interactive")
+        servicio = self.aplicacion.extensions["anmi_servicio"]
+        conversacion = servicio.repositorio.obtener_conversacion(
+            "whatsapp",
+            "51987654321",
+        )
+        self.assertIsNone(conversacion.meses_bebe)
+        self.assertEqual(conversacion.rango_edad_bebe, "12-24")
+
+    def test_webhook_rechaza_cinco_meses_sin_error_interno(self) -> None:
+        with patch.object(webhook, "enviar_mensaje", return_value=True) as enviar:
+            self.cliente.post(
+                "/webhook",
+                json=crear_payload("hola", mensaje_id="wamid.inicio-menor"),
+            )
+            respuesta = self.cliente.post(
+                "/webhook",
+                json=crear_payload("5", mensaje_id="wamid.edad-menor"),
+            )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(
+            enviar.call_args_list[-1].args[1]["text"]["body"],
+            MENSAJE_MESES_INVALIDOS,
+        )
+        servicio = self.aplicacion.extensions["anmi_servicio"]
+        conversacion = servicio.repositorio.obtener_conversacion(
+            "whatsapp",
+            "51987654321",
+        )
+        self.assertEqual(conversacion.estado, "esperando_meses")
+        self.assertIsNone(conversacion.meses_bebe)
+
 
 class SimuladorWebTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -282,6 +407,9 @@ class SimuladorWebTest(unittest.TestCase):
             mensaje = self.cliente.post(
                 "/mensaje", data={"mensaje": "hola"}
             )
+            edad = self.cliente.post(
+                "/mensaje", data={"mensaje": "edad_24_36"}
+            )
             activa_antes_reinicio = (
                 self.servicio.repositorio.obtener_conversacion(
                     "simulador", usuario
@@ -295,7 +423,12 @@ class SimuladorWebTest(unittest.TestCase):
         self.assertEqual(mensaje.status_code, 200)
         self.assertIn("hola", mensaje.get_data(as_text=True))
         self.assertIn("ANMI", mensaje.get_data(as_text=True))
+        self.assertIn("edad_6_12", mensaje.get_data(as_text=True))
+        self.assertIn("24 a 36 meses", mensaje.get_data(as_text=True))
+        self.assertEqual(edad.status_code, 200)
+        self.assertIn("Qué alimentos", edad.get_data(as_text=True))
         self.assertIsNotNone(activa_antes_reinicio)
+        self.assertEqual(activa_antes_reinicio.rango_edad_bebe, "24-36")
         self.assertEqual(reinicio.status_code, 302)
         self.assertEqual(reinicio.headers["Location"], "/")
         self.assertIn("Max-Age=0", reinicio.headers["Set-Cookie"])
@@ -326,6 +459,28 @@ class SimuladorWebTest(unittest.TestCase):
                 "simulador", usuario
             )
         )
+
+    def test_cinco_meses_muestra_validacion_y_conserva_el_estado(self) -> None:
+        usuario = "navegador-edad-menor"
+        with patch.object(
+            simulador.secrets,
+            "token_urlsafe",
+            return_value=usuario,
+        ):
+            self.cliente.post("/mensaje", data={"mensaje": "hola"})
+            respuesta = self.cliente.post(
+                "/mensaje",
+                data={"mensaje": "5"},
+            )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn(MENSAJE_MESES_INVALIDOS, respuesta.get_data(as_text=True))
+        conversacion = self.servicio.repositorio.obtener_conversacion(
+            "simulador",
+            usuario,
+        )
+        self.assertEqual(conversacion.estado, "esperando_meses")
+        self.assertIsNone(conversacion.meses_bebe)
 
     def test_salud_usa_instancia_aislada(self) -> None:
         respuesta = self.cliente.get("/salud")

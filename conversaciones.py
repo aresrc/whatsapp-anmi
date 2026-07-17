@@ -28,10 +28,16 @@ DIRECTORIO_PROYECTO = Path(__file__).resolve().parent
 RUTA_ESQUEMA_PREDETERMINADA = DIRECTORIO_PROYECTO / "schema.sql"
 RUTA_BD_PREDETERMINADA = DIRECTORIO_PROYECTO / "instance" / "anmi.sqlite3"
 ESTADO_INICIAL = "esperando_meses"
+RANGOS_EDAD_BEBE = frozenset({"6-12", "12-24", "24-36"})
+RANGOS_EDAD_BEBE_LEGACY = frozenset({"6-8", "9-11", "12-23"})
+RANGOS_EDAD_BEBE_PERSISTIDOS = (
+    RANGOS_EDAD_BEBE | RANGOS_EDAD_BEBE_LEGACY
+)
 ESTADOS_CONVERSACION = frozenset(
     {
         "esperando_meses",
         "esperando_alimentos",
+        "esperando_edad_receta",
         "lista",
         "esperando_calificacion",
     }
@@ -61,6 +67,7 @@ class ConversacionActiva:
     fecha_inicio_utc: datetime
     fecha_ultima_actividad_utc: datetime
     meses_bebe: int | None
+    rango_edad_bebe: str | None
     alimentos_contexto: str | None
     calificacion_pendiente: int | None
 
@@ -84,6 +91,7 @@ class ConsultaFinalizada:
     id: int
     fecha_hora_cierre: datetime
     meses_bebe: int | None
+    rango_edad_bebe: str | None
     calificacion: int
     categorias: tuple[str, ...]
 
@@ -155,9 +163,17 @@ def _validar_meses(meses_bebe: int | None) -> None:
     if meses_bebe is not None and (
         isinstance(meses_bebe, bool)
         or not isinstance(meses_bebe, int)
-        or not 6 <= meses_bebe <= 24
+        or not 6 <= meses_bebe <= 36
     ):
-        raise ValueError("meses_bebe debe ser un entero entre 6 y 24 o None")
+        raise ValueError("meses_bebe debe ser un entero entre 6 y 36 o None")
+
+
+def _validar_rango_edad(rango_edad_bebe: str | None) -> None:
+    if rango_edad_bebe is not None and rango_edad_bebe not in RANGOS_EDAD_BEBE:
+        permitidos = ", ".join(sorted(RANGOS_EDAD_BEBE))
+        raise ValueError(
+            f"rango_edad_bebe debe ser uno de {permitidos} o None"
+        )
 
 
 def _validar_calificacion(calificacion: int | None) -> None:
@@ -205,6 +221,222 @@ class RepositorioConversaciones:
 
         with self._conexion() as conexion:
             conexion.executescript(esquema)
+            self._migrar_esquema_edades(conexion)
+            conexion.commit()
+
+    @classmethod
+    def _migrar_esquema_edades(
+        cls,
+        conexion: sqlite3.Connection,
+    ) -> None:
+        """Unifica restricciones de edad y recupera perfiles legacy inválidos."""
+        tablas_a_migrar = [
+            tabla
+            for tabla in ("conversaciones_activas", "consultas_finalizadas")
+            if cls._tabla_edades_necesita_migracion(conexion, tabla)
+        ]
+        if not tablas_a_migrar:
+            return
+
+        conexion.commit()
+        conexion.execute("PRAGMA foreign_keys = OFF")
+        try:
+            if "conversaciones_activas" in tablas_a_migrar:
+                cls._migrar_conversaciones_activas(conexion)
+            if "consultas_finalizadas" in tablas_a_migrar:
+                cls._migrar_consultas_finalizadas(conexion)
+            conexion.commit()
+        finally:
+            conexion.execute("PRAGMA foreign_keys = ON")
+
+        errores_fk = conexion.execute("PRAGMA foreign_key_check").fetchall()
+        if errores_fk:
+            raise ErrorPersistenciaConversacion(
+                "La migración de edades dejó referencias inválidas"
+            )
+
+    @staticmethod
+    def _tabla_edades_necesita_migracion(
+        conexion: sqlite3.Connection,
+        tabla: str,
+    ) -> bool:
+        fila = conexion.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (tabla,),
+        ).fetchone()
+        sql = fila["sql"] if fila else ""
+        restricciones_actualizadas = (
+            "BETWEEN 6 AND 36" in sql
+            and all(
+                f"'{rango}'" in sql
+                for rango in RANGOS_EDAD_BEBE_PERSISTIDOS
+            )
+        )
+        if tabla == "conversaciones_activas":
+            restricciones_actualizadas = (
+                restricciones_actualizadas
+                and "'esperando_edad_receta'" in sql
+            )
+        return not restricciones_actualizadas
+
+    @staticmethod
+    def _columnas_tabla(
+        conexion: sqlite3.Connection,
+        tabla: str,
+    ) -> set[str]:
+        return {
+            fila["name"]
+            for fila in conexion.execute(f"PRAGMA table_info({tabla})")
+        }
+
+    @classmethod
+    def _expresiones_edad_migrada(
+        cls,
+        conexion: sqlite3.Connection,
+        tabla: str,
+    ) -> tuple[str, str, str]:
+        columnas = cls._columnas_tabla(conexion, tabla)
+        tiene_rango = "rango_edad_bebe" in columnas
+        rangos_sql = ", ".join(
+            f"'{rango}'" for rango in sorted(RANGOS_EDAD_BEBE_PERSISTIDOS)
+        )
+        rango_invalido = (
+            f"rango_edad_bebe IS NOT NULL "
+            f"AND rango_edad_bebe NOT IN ({rangos_sql})"
+            if tiene_rango
+            else "0"
+        )
+        perfil_invalido = (
+            "(meses_bebe IS NOT NULL AND meses_bebe NOT BETWEEN 6 AND 36) "
+            f"OR ({rango_invalido})"
+        )
+        meses = (
+            "CASE WHEN meses_bebe BETWEEN 6 AND 36 "
+            "THEN meses_bebe ELSE NULL END"
+        )
+        if tiene_rango:
+            rango = (
+                "CASE "
+                f"WHEN {perfil_invalido} THEN NULL "
+                "WHEN meses_bebe IS NOT NULL THEN NULL "
+                f"WHEN rango_edad_bebe IN ({rangos_sql}) "
+                "THEN rango_edad_bebe ELSE NULL END"
+            )
+        else:
+            rango = "NULL"
+        return meses, rango, perfil_invalido
+
+    @classmethod
+    def _migrar_conversaciones_activas(
+        cls,
+        conexion: sqlite3.Connection,
+    ) -> None:
+        meses, rango, perfil_invalido = cls._expresiones_edad_migrada(
+            conexion,
+            "conversaciones_activas",
+        )
+        conexion.executescript(
+            f"""
+            DROP TABLE IF EXISTS conversaciones_activas_nueva;
+            CREATE TABLE conversaciones_activas_nueva (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                canal TEXT NOT NULL CHECK (length(trim(canal)) > 0),
+                usuario_temporal TEXT NOT NULL
+                    CHECK (length(trim(usuario_temporal)) > 0),
+                estado TEXT NOT NULL CHECK (
+                    estado IN (
+                        'esperando_meses',
+                        'esperando_alimentos',
+                        'esperando_edad_receta',
+                        'lista',
+                        'esperando_calificacion'
+                    )
+                ),
+                fecha_inicio_utc TEXT NOT NULL DEFAULT (
+                    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                ),
+                fecha_ultima_actividad_utc TEXT NOT NULL DEFAULT (
+                    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                ),
+                meses_bebe INTEGER CHECK (
+                    meses_bebe IS NULL OR meses_bebe BETWEEN 6 AND 36
+                ),
+                rango_edad_bebe TEXT CHECK (
+                    rango_edad_bebe IS NULL OR rango_edad_bebe IN (
+                        '6-8', '9-11', '12-23',
+                        '6-12', '12-24', '24-36'
+                    )
+                ),
+                alimentos_contexto TEXT,
+                calificacion_pendiente INTEGER CHECK (
+                    calificacion_pendiente IS NULL
+                    OR calificacion_pendiente BETWEEN 1 AND 5
+                ),
+                UNIQUE (canal, usuario_temporal)
+            );
+            INSERT INTO conversaciones_activas_nueva (
+                id, canal, usuario_temporal, estado,
+                fecha_inicio_utc, fecha_ultima_actividad_utc,
+                meses_bebe, rango_edad_bebe, alimentos_contexto,
+                calificacion_pendiente
+            )
+            SELECT
+                id, canal, usuario_temporal,
+                CASE WHEN {perfil_invalido}
+                    THEN 'esperando_meses' ELSE estado END,
+                fecha_inicio_utc, fecha_ultima_actividad_utc,
+                {meses}, {rango},
+                CASE WHEN {perfil_invalido}
+                    THEN NULL ELSE alimentos_contexto END,
+                CASE WHEN {perfil_invalido}
+                    THEN NULL ELSE calificacion_pendiente END
+            FROM conversaciones_activas;
+            DROP TABLE conversaciones_activas;
+            ALTER TABLE conversaciones_activas_nueva
+                RENAME TO conversaciones_activas;
+            CREATE INDEX IF NOT EXISTS ix_conversaciones_ultima_actividad
+                ON conversaciones_activas (fecha_ultima_actividad_utc);
+            """
+        )
+
+    @classmethod
+    def _migrar_consultas_finalizadas(
+        cls,
+        conexion: sqlite3.Connection,
+    ) -> None:
+        meses, rango, _ = cls._expresiones_edad_migrada(
+            conexion,
+            "consultas_finalizadas",
+        )
+        conexion.executescript(
+            f"""
+            DROP TABLE IF EXISTS consultas_finalizadas_nueva;
+            CREATE TABLE consultas_finalizadas_nueva (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha_hora_cierre TEXT NOT NULL,
+                meses_bebe INTEGER CHECK (
+                    meses_bebe IS NULL OR meses_bebe BETWEEN 6 AND 36
+                ),
+                rango_edad_bebe TEXT CHECK (
+                    rango_edad_bebe IS NULL OR rango_edad_bebe IN (
+                        '6-8', '9-11', '12-23',
+                        '6-12', '12-24', '24-36'
+                    )
+                ),
+                calificacion INTEGER NOT NULL
+                    CHECK (calificacion BETWEEN 1 AND 5)
+            );
+            INSERT INTO consultas_finalizadas_nueva (
+                id, fecha_hora_cierre, meses_bebe,
+                rango_edad_bebe, calificacion
+            )
+            SELECT id, fecha_hora_cierre, {meses}, {rango}, calificacion
+            FROM consultas_finalizadas;
+            DROP TABLE consultas_finalizadas;
+            ALTER TABLE consultas_finalizadas_nueva
+                RENAME TO consultas_finalizadas;
+            """
+        )
 
     @contextmanager
     def _conexion(self) -> Iterator[sqlite3.Connection]:
@@ -335,6 +567,7 @@ class RepositorioConversaciones:
         *,
         estado: str | object = _SIN_CAMBIO,
         meses_bebe: int | None | object = _SIN_CAMBIO,
+        rango_edad_bebe: str | None | object = _SIN_CAMBIO,
         alimentos_contexto: str | None | object = _SIN_CAMBIO,
         calificacion_pendiente: int | None | object = _SIN_CAMBIO,
         ahora: datetime | None = None,
@@ -352,6 +585,20 @@ class RepositorioConversaciones:
             _validar_meses(meses_bebe)  # type: ignore[arg-type]
             asignaciones.append("meses_bebe = ?")
             parametros.append(meses_bebe)
+        if rango_edad_bebe is not _SIN_CAMBIO:
+            _validar_rango_edad(rango_edad_bebe)  # type: ignore[arg-type]
+            asignaciones.append("rango_edad_bebe = ?")
+            parametros.append(rango_edad_bebe)
+        if meses_bebe is not _SIN_CAMBIO and meses_bebe is not None:
+            if rango_edad_bebe not in (_SIN_CAMBIO, None):
+                raise ValueError(
+                    "meses_bebe y rango_edad_bebe no pueden coexistir"
+                )
+            if rango_edad_bebe is _SIN_CAMBIO:
+                asignaciones.append("rango_edad_bebe = NULL")
+        if rango_edad_bebe is not _SIN_CAMBIO and rango_edad_bebe is not None:
+            if meses_bebe is _SIN_CAMBIO:
+                asignaciones.append("meses_bebe = NULL")
         if alimentos_contexto is not _SIN_CAMBIO:
             if (
                 alimentos_contexto is not None
@@ -385,11 +632,19 @@ class RepositorioConversaciones:
         conversacion_id: int,
         *,
         meses_bebe: int | None | object = _SIN_CAMBIO,
+        rango_edad_bebe: str | None | object = _SIN_CAMBIO,
         alimentos_contexto: str | None | object = _SIN_CAMBIO,
         ahora: datetime | None = None,
     ) -> ConversacionActiva:
         if meses_bebe is not _SIN_CAMBIO:
             _validar_meses(meses_bebe)  # type: ignore[arg-type]
+        if rango_edad_bebe is not _SIN_CAMBIO:
+            _validar_rango_edad(rango_edad_bebe)  # type: ignore[arg-type]
+        if (
+            meses_bebe not in (_SIN_CAMBIO, None)
+            and rango_edad_bebe not in (_SIN_CAMBIO, None)
+        ):
+            raise ValueError("meses_bebe y rango_edad_bebe no pueden coexistir")
         if (
             alimentos_contexto is not _SIN_CAMBIO
             and alimentos_contexto is not None
@@ -402,6 +657,15 @@ class RepositorioConversaciones:
         if meses_bebe is not _SIN_CAMBIO:
             asignaciones.append("meses_bebe = ?")
             parametros.append(meses_bebe)
+        if rango_edad_bebe is not _SIN_CAMBIO:
+            asignaciones.append("rango_edad_bebe = ?")
+            parametros.append(rango_edad_bebe)
+        if meses_bebe is not _SIN_CAMBIO and meses_bebe is not None:
+            if rango_edad_bebe is _SIN_CAMBIO:
+                asignaciones.append("rango_edad_bebe = NULL")
+        if rango_edad_bebe is not _SIN_CAMBIO and rango_edad_bebe is not None:
+            if meses_bebe is _SIN_CAMBIO:
+                asignaciones.append("meses_bebe = NULL")
         if alimentos_contexto is not _SIN_CAMBIO:
             asignaciones.append("alimentos_contexto = ?")
             parametros.append(
@@ -729,13 +993,15 @@ class RepositorioConversaciones:
                 INSERT INTO consultas_finalizadas (
                     fecha_hora_cierre,
                     meses_bebe,
+                    rango_edad_bebe,
                     calificacion
                 )
-                VALUES (?, ?, ?)
+                VALUES (?, ?, ?, ?)
                 """,
                 (
                     fecha_lima,
                     conversacion["meses_bebe"],
+                    conversacion["rango_edad_bebe"],
                     calificacion,
                 ),
             )
@@ -767,6 +1033,7 @@ class RepositorioConversaciones:
             id=int(consulta_id),
             fecha_hora_cierre=_parsear_fecha(fecha_lima),
             meses_bebe=conversacion["meses_bebe"],
+            rango_edad_bebe=conversacion["rango_edad_bebe"],
             calificacion=calificacion,
             categorias=categorias,
         )
@@ -796,6 +1063,7 @@ class RepositorioConversaciones:
             id=fila["id"],
             fecha_hora_cierre=_parsear_fecha(fila["fecha_hora_cierre"]),
             meses_bebe=fila["meses_bebe"],
+            rango_edad_bebe=fila["rango_edad_bebe"],
             calificacion=fila["calificacion"],
             categorias=tuple(
                 categoria["categoria"] for categoria in filas_categorias
@@ -919,6 +1187,7 @@ class RepositorioConversaciones:
                 fila["fecha_ultima_actividad_utc"]
             ),
             meses_bebe=fila["meses_bebe"],
+            rango_edad_bebe=fila["rango_edad_bebe"],
             alimentos_contexto=fila["alimentos_contexto"],
             calificacion_pendiente=fila["calificacion_pendiente"],
         )

@@ -695,6 +695,19 @@ def _normalizar_alimentos(
     )
 
 
+def _normalizar_rango_edad(
+    rango_edad_bebe: str | None,
+) -> tuple[int, int] | None:
+    return {
+        "6-8": (6, 8),
+        "9-11": (9, 11),
+        "12-23": (12, 23),
+        "6-12": (6, 12),
+        "12-24": (12, 24),
+        "24-36": (24, 36),
+    }.get(rango_edad_bebe)
+
+
 def _evaluar_candidato(
     numero: int,
     regla: ReglaConocimiento,
@@ -703,6 +716,7 @@ def _evaluar_candidato(
     correcciones: tuple[CoincidenciaAproximada, ...],
     categoria_anterior: str | None,
     meses: int | None,
+    rango_edad: tuple[int, int] | None,
     alimentos: frozenset[str],
 ) -> _CandidatoEvaluado | None:
     """Puntúa una regla y descarta las que carecen de evidencia actual."""
@@ -794,6 +808,11 @@ def _evaluar_candidato(
         bono_edad = puntaje_base * (
             0.10 if minimo <= meses <= maximo else -0.20
         )
+    elif rango_edad is not None and rango is not None:
+        minimo, maximo = rango
+        rango_minimo, rango_maximo = rango_edad
+        coincide = minimo <= rango_maximo and rango_minimo <= maximo
+        bono_edad = puntaje_base * (0.10 if coincide else -0.20)
 
     return _CandidatoEvaluado(
         indice_regla=numero,
@@ -817,6 +836,7 @@ def buscar_mejor_regla(
     *,
     categoria_anterior: str | None = None,
     meses_bebe: int | None = None,
+    rango_edad_bebe: str | None = None,
     alimentos_contexto: str | Sequence[str] | None = None,
 ) -> ResultadoBusqueda | None:
     """Selecciona una regla solo cuando el puntaje y el margen son seguros.
@@ -841,6 +861,11 @@ def buscar_mejor_regla(
     if isinstance(meses, bool) or (meses is not None and meses < 0):
         meses = None
     alimentos = _normalizar_alimentos(alimentos_contexto)
+    rango_edad = (
+        None
+        if meses_explicitos is not None or meses_bebe is not None
+        else _normalizar_rango_edad(rango_edad_bebe)
+    )
 
     candidatos = tuple(
         candidato
@@ -854,6 +879,7 @@ def buscar_mejor_regla(
                 correcciones,
                 categoria_anterior,
                 meses,
+                rango_edad,
                 alimentos,
             )
         )

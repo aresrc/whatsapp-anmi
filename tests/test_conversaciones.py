@@ -221,7 +221,7 @@ class RepositorioConversacionesTests(unittest.TestCase):
             "restricciones",
         )
 
-        for meses in (-1, 60, 3.5, True):
+        for meses in (5, 37, -1, 60, 3.5, True):
             with self.subTest(meses=meses):
                 with self.assertRaises(ValueError):
                     self.repositorio.actualizar_perfil(
@@ -248,6 +248,15 @@ class RepositorioConversacionesTests(unittest.TestCase):
                     """
                     INSERT INTO conversaciones_activas (
                         canal, usuario_temporal, estado, meses_bebe
+                    ) VALUES ('sql', 'menor-de-seis', 'lista', 5)
+                    """
+                )
+            conexion.rollback()
+            with self.assertRaises(sqlite3.IntegrityError):
+                conexion.execute(
+                    """
+                    INSERT INTO conversaciones_activas (
+                        canal, usuario_temporal, estado, meses_bebe
                     ) VALUES ('sql', 'meses-invalidos', 'activo', 60)
                     """
                 )
@@ -262,6 +271,136 @@ class RepositorioConversacionesTests(unittest.TestCase):
                 )
         finally:
             conexion.close()
+
+    def test_rango_edad_es_exclusivo_y_se_conserva_en_resumen(self) -> None:
+        conversacion = self.repositorio.crear_conversacion(
+            "simulador",
+            "rango-edad",
+        )
+        con_rango = self.repositorio.actualizar_perfil(
+            conversacion.id,
+            rango_edad_bebe="12-24",
+        )
+        self.assertIsNone(con_rango.meses_bebe)
+        self.assertEqual(con_rango.rango_edad_bebe, "12-24")
+
+        with self.assertRaises(ValueError):
+            self.repositorio.actualizar_perfil(
+                conversacion.id,
+                meses_bebe=10,
+                rango_edad_bebe="6-12",
+            )
+        with self.assertRaises(ValueError):
+            self.repositorio.actualizar_perfil(
+                conversacion.id,
+                rango_edad_bebe="0-5",
+            )
+
+        resumen = self.repositorio.finalizar_conversacion(
+            conversacion.id,
+            5,
+        )
+        self.assertIsNone(resumen.meses_bebe)
+        self.assertEqual(resumen.rango_edad_bebe, "12-24")
+        self.assertEqual(
+            self.repositorio.obtener_consulta_finalizada(resumen.id),
+            resumen,
+        )
+
+    def test_migracion_amplia_resumen_sin_perder_datos(self) -> None:
+        ruta_legacy = Path(self.directorio_temporal.name) / "legacy.sqlite3"
+        with closing(sqlite3.connect(ruta_legacy)) as conexion:
+            conexion.executescript(
+                """
+                PRAGMA foreign_keys = ON;
+                CREATE TABLE consultas_finalizadas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fecha_hora_cierre TEXT NOT NULL,
+                    meses_bebe INTEGER CHECK (
+                        meses_bebe IS NULL OR meses_bebe BETWEEN 0 AND 24
+                    ),
+                    calificacion INTEGER NOT NULL
+                        CHECK (calificacion BETWEEN 1 AND 5)
+                );
+                CREATE TABLE categorias_consulta (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    consulta_finalizada_id INTEGER NOT NULL,
+                    categoria TEXT NOT NULL,
+                    categoria_normalizada TEXT NOT NULL,
+                    FOREIGN KEY (consulta_finalizada_id)
+                        REFERENCES consultas_finalizadas (id)
+                        ON DELETE CASCADE
+                );
+                INSERT INTO consultas_finalizadas (
+                    id, fecha_hora_cierre, meses_bebe, calificacion
+                ) VALUES (7, '2026-07-16T12:00:00.000-05:00', 11, 5);
+                INSERT INTO categorias_consulta (
+                    consulta_finalizada_id, categoria, categoria_normalizada
+                ) VALUES (7, 'Anemia', 'anemia');
+                """
+            )
+
+        repositorio = RepositorioConversaciones(ruta_legacy)
+        repositorio.inicializar()
+        anterior = repositorio.obtener_consulta_finalizada(7)
+        self.assertEqual(anterior.meses_bebe, 11)
+        self.assertIsNone(anterior.rango_edad_bebe)
+        self.assertEqual(anterior.categorias, ("Anemia",))
+
+        activa = repositorio.crear_conversacion("simulador", "30-meses")
+        repositorio.actualizar_perfil(activa.id, meses_bebe=30)
+        nueva = repositorio.finalizar_conversacion(activa.id, 4)
+        self.assertEqual(nueva.meses_bebe, 30)
+
+    def test_migracion_recupera_edad_manual_menor_de_seis(self) -> None:
+        ruta_legacy = Path(self.directorio_temporal.name) / "edad-invalida.sqlite3"
+        with closing(sqlite3.connect(ruta_legacy)) as conexion:
+            conexion.executescript(
+                """
+                CREATE TABLE conversaciones_activas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    canal TEXT NOT NULL,
+                    usuario_temporal TEXT NOT NULL,
+                    estado TEXT NOT NULL,
+                    fecha_inicio_utc TEXT NOT NULL,
+                    fecha_ultima_actividad_utc TEXT NOT NULL,
+                    meses_bebe INTEGER CHECK (
+                        meses_bebe IS NULL OR meses_bebe BETWEEN 0 AND 59
+                    ),
+                    alimentos_contexto TEXT,
+                    calificacion_pendiente INTEGER,
+                    UNIQUE (canal, usuario_temporal)
+                );
+                INSERT INTO conversaciones_activas (
+                    canal, usuario_temporal, estado,
+                    fecha_inicio_utc, fecha_ultima_actividad_utc,
+                    meses_bebe, alimentos_contexto
+                ) VALUES (
+                    'simulador', 'manual', 'lista',
+                    '2026-07-16T12:00:00.000Z',
+                    '2026-07-16T12:00:00.000Z',
+                    3, 'avena'
+                );
+                """
+            )
+
+        repositorio = RepositorioConversaciones(ruta_legacy)
+        repositorio.inicializar()
+        recuperada = repositorio.obtener_conversacion(
+            "simulador",
+            "manual",
+        )
+
+        self.assertIsNotNone(recuperada)
+        self.assertEqual(recuperada.estado, "esperando_meses")
+        self.assertIsNone(recuperada.meses_bebe)
+        self.assertIsNone(recuperada.rango_edad_bebe)
+        self.assertIsNone(recuperada.alimentos_contexto)
+        esperando_receta = repositorio.actualizar_estado(
+            recuperada.id,
+            "esperando_edad_receta",
+        )
+        self.assertEqual(esperando_receta.estado, "esperando_edad_receta")
 
     def test_evidencia_se_serializa_y_recupera_sin_perdidas(self) -> None:
         conversacion = self.repositorio.crear_conversacion(
@@ -410,7 +549,13 @@ class RepositorioConversacionesTests(unittest.TestCase):
 
         self.assertEqual(
             self._columnas("consultas_finalizadas"),
-            {"id", "fecha_hora_cierre", "meses_bebe", "calificacion"},
+            {
+                "id",
+                "fecha_hora_cierre",
+                "meses_bebe",
+                "rango_edad_bebe",
+                "calificacion",
+            },
         )
         self.assertEqual(
             self._columnas("categorias_consulta"),

@@ -129,6 +129,23 @@ class CsvMotorConocimientosV2Tests(unittest.TestCase):
             self.reglas[0].disclaimer,
         )
 
+    def test_respuestas_sobre_hemoglobina_estan_etiquetadas(self) -> None:
+        filas = [
+            fila
+            for fila in self.filas
+            if "hemoglobina"
+            in motor.normalizar_texto(fila[ENCABEZADOS_V2[4]])
+        ]
+
+        self.assertEqual(len(filas), 29)
+        for fila in filas:
+            with self.subTest(id=fila["ID"]):
+                etiquetas = motor.normalizar_texto(
+                    f"{fila[ENCABEZADOS_V2[1]]} "
+                    f"{fila[ENCABEZADOS_V2[2]]}"
+                )
+                self.assertIn("hemoglobina", etiquetas)
+
     def test_conserva_exactamente_dos_emojis_de_alerta(self) -> None:
         alerta = "\U0001f6a8"
         reglas_con_alerta = [
@@ -407,15 +424,25 @@ class NormalizacionYBusquedaTests(unittest.TestCase):
             reglas,
             meses_bebe=7,
         )
+        para_rango = motor.buscar_mejor_regla(
+            "papilla espesa",
+            reglas,
+            rango_edad_bebe="9-11",
+        )
 
         self.assertIsNotNone(para_siete)
         self.assertIsNotNone(para_diez)
         self.assertIsNotNone(edad_explicita)
-        assert para_siete and para_diez and edad_explicita
+        self.assertIsNotNone(para_rango)
+        assert para_siete and para_diez and edad_explicita and para_rango
         self.assertEqual(para_siete.categoria, "Alimentacion (Bebes 6-8m)")
         self.assertEqual(para_diez.categoria, "Alimentacion (Bebes 9-11m)")
         self.assertEqual(
             edad_explicita.categoria,
+            "Alimentacion (Bebes 9-11m)",
+        )
+        self.assertEqual(
+            para_rango.categoria,
             "Alimentacion (Bebes 9-11m)",
         )
 

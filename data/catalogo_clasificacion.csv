@@ -1,6 +1,6 @@
 ﻿ID,Categoría,Subcategoría
 ANMI-0001,Definición y Síntomas,¿Qué es la Anemia? (Básico)
-ANMI-0002,Definición y Síntomas,¿Qué es la Anemia? (Técnico)
+ANMI-0002,Definición y Síntomas,¿Qué es la Anemia? (Técnico) (Hemoglobina)
 ANMI-0003,Definición y Síntomas,¿Qué es la Anemia? (Simple)
 ANMI-0004,Definición y Síntomas,¿Qué es la Anemia? (Enfoque Niño)
 ANMI-0005,Definición y Síntomas,Síntomas (Lista General)
@@ -26,9 +26,9 @@ ANMI-0024,Definición y Síntomas,Estadísticas (Perú)
 ANMI-0025,Definición y Síntomas,Estadísticas (Zonas)
 ANMI-0026,Definición y Síntomas,Estadísticas (Edad)
 ANMI-0027,Definición y Síntomas,Estadísticas (Gestantes)
-ANMI-0028,Definición y Síntomas,Diagnóstico (Cómo)
+ANMI-0028,Definición y Síntomas,Diagnóstico (Cómo) (Hemoglobina)
 ANMI-0029,Definición y Síntomas,Diagnóstico (Lugar)
-ANMI-0030,Definición y Síntomas,Diagnóstico (No visual)
+ANMI-0030,Definición y Síntomas,Diagnóstico (No visual) (Hemoglobina)
 ANMI-0031,Prevención (Bebés),Medidas Clave (General)
 ANMI-0032,Prevención (Bebés),Medidas Clave (Enfoque)
 ANMI-0033,Prevención (Bebés),Medidas Clave (Simple)
@@ -43,12 +43,12 @@ ANMI-0041,Prevención (Bebés),Higiene (Lavado de manos)
 ANMI-0042,Prevención (Bebés),Higiene (Agua Segura)
 ANMI-0043,Prevención (Bebés),Higiene (Parásitos)
 ANMI-0044,Prevención (Bebés),Controles CRED (Importancia)
-ANMI-0045,Prevención (Bebés),Controles CRED (Descarte)
+ANMI-0045,Prevención (Bebés),Controles CRED (Descarte) (Hemoglobina)
 ANMI-0046,Prevención (Bebés),Controles CRED (Frecuencia)
 ANMI-0047,Prevención (Gestantes),Medidas Clave (General)
 ANMI-0048,Prevención (Gestantes),Medidas Clave (Variación)
 ANMI-0049,Prevención (Gestantes),Controles Prenatales (Importancia)
-ANMI-0050,Prevención (Gestantes),Controles Prenatales (Descarte)
+ANMI-0050,Prevención (Gestantes),Controles Prenatales (Descarte) (Hemoglobina)
 ANMI-0051,Prevención (Gestantes),Ácido Fólico (Importancia)
 ANMI-0052,Prevención (Gestantes),Ácido Fólico (Dosis)
 ANMI-0053,Prevención (Gestantes),Alimentación (Hierro)
@@ -73,12 +73,12 @@ ANMI-0071,Prevención (General),"Mitos: ""No le doy hierro porque lo enferma"""
 ANMI-0072,Prevención (Gestantes),Medidas Clave (Multisectorial)
 ANMI-0073,Prevención (Bebés),Medidas Clave (Multisectorial)
 ANMI-0074,Prevención (Bebés),Hitos (4 meses)
-ANMI-0075,Prevención (Bebés),Hitos (6 meses)
+ANMI-0075,Prevención (Bebés),Hitos (6 meses) (Hemoglobina)
 ANMI-0076,Prevención (Bebés),Hitos (12 meses)
 ANMI-0077,Prevención (Bebés),Hitos (30 días)
 ANMI-0078,Prevención (Gestantes),Hitos (Semana 14)
 ANMI-0079,Prevención (Gestantes),Hitos (Postparto)
-ANMI-0080,Prevención (Adolescentes),Hitos (Control Anual)
+ANMI-0080,Prevención (Adolescentes),Hitos (Control Anual) (Hemoglobina)
 ANMI-0081,Prevención (General),Causa: Crecimiento Rápido
 ANMI-0082,Prevención (General),Causa: Dieta Inadecuada
 ANMI-0083,Prevención (General),Mitos: Tinta de los pañales
@@ -91,8 +91,8 @@ ANMI-0089,Prevención (General),"Mitos: ""No necesita suplemento"""
 ANMI-0090,Prevención (Gestantes),"Mitos: ""Las pastillas engordan"""
 ANMI-0091,Prevención (Gestantes),"Mitos: ""El bebé nacerá muy grande"""
 ANMI-0092,Prevención (Bebés),"Mitos: ""Le va a doler la barriga"""
-ANMI-0093,Prevención (Gestantes),Hitos (Semana 25-28)
-ANMI-0094,Prevención (Bebés),Hitos (18 meses)
+ANMI-0093,Prevención (Gestantes),Hitos (Semana 25-28) (Hemoglobina)
+ANMI-0094,Prevención (Bebés),Hitos (18 meses) (Hemoglobina)
 ANMI-0095,Prevención (Bebés),Hitos (24 y 35 meses)
 ANMI-0096,Prevención (General),Enfoque: Doble Carga
 ANMI-0097,Alimentación (Bebés 6-8m),Inicio de Papillas
@@ -233,7 +233,7 @@ ANMI-0231,Alimentación (General),¿Qué es el Zinc?
 ANMI-0232,Alimentación (General),¿Qué es el Ácido Fólico?
 ANMI-0233,Alimentación (General),¿Qué es la Vitamina B12?
 ANMI-0234,Alimentación (General),Múltiples Causas
-ANMI-0235,Alimentación (General),Proteínas
+ANMI-0235,Alimentación (General),Proteínas (Hemoglobina)
 ANMI-0236,Alimentación (Gestantes),Hígado (Precaución)
 ANMI-0237,Alimentación (Gestantes),Refrigerio Saludable
 ANMI-0238,Alimentación (Bebés),Cuchara del Bebé
@@ -241,7 +241,7 @@ ANMI-0239,Alimentación (Bebés),Presupuesto y Nutrición
 ANMI-0240,Alimentación (Bebés),Introducción de Alimentos
 ANMI-0241,Alimentación (General),Dieta Vegetariana
 ANMI-0242,Alimentación (General),Absorción (Resumen)
-ANMI-0243,Alimentación (Gestantes),Hitos (Postparto Control)
+ANMI-0243,Alimentación (Gestantes),Hitos (Postparto Control) (Hemoglobina)
 ANMI-0244,Alimentación (Bebés),Inapetencia (Crecimiento)
 ANMI-0245,Alimentación (Bebés),Hierro de la Papa
 ANMI-0246,Alimentación (Mitos),"""Agüitas"""
@@ -256,11 +256,11 @@ ANMI-0254,Alimentación (General),Hierro y Zinc
 ANMI-0255,Alimentación (Mitos),"""La anemia no es importante"""
 ANMI-0256,Alimentación (Mitos),"""Mi hijo no come vísceras"""
 ANMI-0257,Alimentación (Bebés),Cuchara de Palo
-ANMI-0258,Alimentación (General),¿Qué es la Vitamina B6?
+ANMI-0258,Alimentación (General),¿Qué es la Vitamina B6? (Hemoglobina)
 ANMI-0259,Alimentación (General),¿Qué es el Cobre?
 ANMI-0260,Alimentación (General),¿Qué son los Fitatos?
 ANMI-0261,Alimentación (Bebés),¿Por qué comida espesa?
-ANMI-0262,Alimentación (Gestantes),Anemia y Preeclampsia
+ANMI-0262,Alimentación (Gestantes),Anemia y Preeclampsia (Hemoglobina)
 ANMI-0263,Alimentación (Bebés),Hierro y Desarrollo Emocional
 ANMI-0264,Alimentación (Bebés),Miel
 ANMI-0265,Alimentación (Gestantes),Antojos
@@ -279,7 +279,7 @@ ANMI-0277,Alimentación (Bebés),Dejar que coma solo
 ANMI-0278,Alimentación (Gestantes),Evitar (Pescado Crudo)
 ANMI-0279,Alimentación (Gestantes),Evitar (Queso fresco)
 ANMI-0280,Alimentación (General),Enfoque: Doble Propósito
-ANMI-0281,Alimentación (Bebés),Hito 6m (Resumen)
+ANMI-0281,Alimentación (Bebés),Hito 6m (Resumen) (Hemoglobina)
 ANMI-0282,Alimentación (Gestantes),Hito 14 semanas (Resumen)
 ANMI-0283,Alimentación (Bebés),Preparación de Alimentos
 ANMI-0284,Alimentación (General),Prioridad de Alimentos
@@ -314,9 +314,9 @@ ANMI-0312,Suplementación (Bebés),Inicio (Bebé a término)
 ANMI-0313,Suplementación (Bebés),Razón (4 meses)
 ANMI-0314,Suplementación (Bebés),Inicio (Bebé prematuro)
 ANMI-0315,Suplementación (Bebés),Dosis (Preventiva)
-ANMI-0316,Suplementación (Bebés),Duración (4-6 meses)
+ANMI-0316,Suplementación (Bebés),Duración (4-6 meses) (Hemoglobina)
 ANMI-0317,Suplementación (Bebés),Continuación (6-11 meses)
-ANMI-0318,Suplementación (Bebés),Continuación (12-23 meses)
+ANMI-0318,Suplementación (Bebés),Continuación (12-23 meses) (Hemoglobina)
 ANMI-0319,Suplementación (Bebés),Continuación (2-3 años)
 ANMI-0320,Suplementación (Bebés),Continuación (3-5 años)
 ANMI-0321,Suplementación (MMN),¿Qué son?
@@ -347,7 +347,7 @@ ANMI-0345,Suplementación (Adherencia),Olvido de Dosis (Bebé)
 ANMI-0346,Suplementación (Adherencia),Olvido de Dosis (Gestante)
 ANMI-0347,Suplementación (Adherencia),Alternativa (Polimaltosado)
 ANMI-0348,Suplementación (Adherencia),Niño Escupe las Gotas
-ANMI-0349,Suplementación (Adherencia),¿Por qué tantos meses?
+ANMI-0349,Suplementación (Adherencia),¿Por qué tantos meses? (Hemoglobina)
 ANMI-0350,Suplementación (Interacciones),Leche / Calcio
 ANMI-0351,Suplementación (Interacciones),Antiácidos
 ANMI-0352,Suplementación (Interacciones),Té / Café / Cafeína
@@ -356,27 +356,27 @@ ANMI-0354,Suplementación (Interacciones),Antibióticos
 ANMI-0355,Suplementación (Interacciones),Vitamina C
 ANMI-0356,Suplementación (Tratamiento),Dosis de Tratamiento
 ANMI-0357,Suplementación (Tratamiento),Duración del Tratamiento
-ANMI-0358,Suplementación (Tratamiento),Control del Tratamiento
+ANMI-0358,Suplementación (Tratamiento),Control del Tratamiento (Hemoglobina)
 ANMI-0359,Suplementación (Tratamiento),Gestante con Anemia
-ANMI-0360,Suplementación (Tratamiento),Gestante (Anemia Severa)
+ANMI-0360,Suplementación (Tratamiento),Gestante (Anemia Severa) (Hemoglobina)
 ANMI-0361,Suplementación (Abandono),Suspensión (Enfermedad)
 ANMI-0362,Suplementación (Abandono),Reinicio (Menos 3 meses)
-ANMI-0363,Suplementación (Abandono),Reinicio (Más 3 meses)
-ANMI-0364,Suplementación (Abandono),No mejora
+ANMI-0363,Suplementación (Abandono),Reinicio (Más 3 meses) (Hemoglobina)
+ANMI-0364,Suplementación (Abandono),No mejora (Hemoglobina)
 ANMI-0365,Suplementación (General),Almacenamiento
 ANMI-0366,Suplementación (General),Higiene del Dosificador
 ANMI-0367,Suplementación (General),Prevención vs Tratamiento (Repaso)
 ANMI-0368,Tratamiento (Niños),Definición y Diferencia
 ANMI-0369,Tratamiento (Niños),Dosis Estándar (Referencia)
 ANMI-0370,Tratamiento (Niños),Duración Obligatoria
-ANMI-0371,Tratamiento (Niños),Primer Control (1 mes)
-ANMI-0372,Tratamiento (Niños),Controles de Seguimiento
-ANMI-0373,Tratamiento (Niños),Criterio de Alta
+ANMI-0371,Tratamiento (Niños),Primer Control (1 mes) (Hemoglobina)
+ANMI-0372,Tratamiento (Niños),Controles de Seguimiento (Hemoglobina)
+ANMI-0373,Tratamiento (Niños),Criterio de Alta (Hemoglobina)
 ANMI-0374,Tratamiento (Niños),Manejo de Malestares
-ANMI-0375,Tratamiento (Niños),Falta de Respuesta
-ANMI-0376,Tratamiento (Niños),Anemia Severa
+ANMI-0375,Tratamiento (Niños),Falta de Respuesta (Hemoglobina)
+ANMI-0376,Tratamiento (Niños),Anemia Severa (Hemoglobina)
 ANMI-0377,Tratamiento (Gestantes),Dosis Terapéutica
-ANMI-0378,Tratamiento (Gestantes),Duración y Controles
+ANMI-0378,Tratamiento (Gestantes),Duración y Controles (Hemoglobina)
 ANMI-0379,Tratamiento (Gestantes),Hierro Endovenoso
 ANMI-0380,Tratamiento (Adolescentes),Esquema Terapéutico
 ANMI-0381,Tratamiento (General),Adherencia (No olvidar)
@@ -389,7 +389,7 @@ ANMI-0387,Emergencia (Gestante),Signos de Alarma
 ANMI-0388,Emergencia (Gestante),Dolor / Presión
 ANMI-0389,Emergencia (Gestante),Movimiento Fetal
 ANMI-0390,Límite: Identidad,¿Quién eres?
-ANMI-0391,Límite: Diagnóstico,Petición de Diagnóstico
+ANMI-0391,Límite: Diagnóstico,Petición de Diagnóstico (Hemoglobina)
 ANMI-0392,Límite: Interpretación,Lectura de Análisis
 ANMI-0393,Límite: Receta Médica,Petición de Fármacos
 ANMI-0394,Límites: Dosis,Cálculo de Dosis

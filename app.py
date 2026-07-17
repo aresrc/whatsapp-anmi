@@ -24,6 +24,7 @@ from motor_conocimientos import (
 from servicio_conversacion import (
     LimpiezaPeriodica,
     MENSAJE_NO_ENCONTRADO,
+    RespuestaConversacion,
     ServicioConversacion,
 )
 
@@ -152,8 +153,42 @@ def enviar_mensaje_texto(numero_destino: str, mensaje: str) -> bool:
     )
 
 
+def enviar_respuesta(
+    numero_destino: str,
+    respuesta: RespuestaConversacion,
+) -> bool:
+    """Envía texto simple o botones de respuesta según la salida del servicio."""
+    if not respuesta.opciones:
+        return enviar_mensaje_texto(numero_destino, respuesta.texto)
+    return enviar_mensaje(
+        numero_destino,
+        {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": numero_destino,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {"text": respuesta.texto},
+                "action": {
+                    "buttons": [
+                        {
+                            "type": "reply",
+                            "reply": {
+                                "id": opcion.id,
+                                "title": opcion.titulo,
+                            },
+                        }
+                        for opcion in respuesta.opciones
+                    ]
+                },
+            },
+        },
+    )
+
+
 def extraer_mensajes_texto(payload: dict[str, Any]) -> list[dict[str, str]]:
-    """Extrae mensajes de texto válidos de un webhook de Meta."""
+    """Extrae texto o la selección de un botón desde un webhook de Meta."""
     mensajes_extraidos: list[dict[str, str]] = []
     entries = payload.get("entry", [])
     if not isinstance(entries, list):
@@ -177,16 +212,29 @@ def extraer_mensajes_texto(payload: dict[str, Any]) -> list[dict[str, str]]:
             for mensaje in mensajes:
                 if not isinstance(mensaje, dict):
                     continue
-                if mensaje.get("type") != "text":
-                    continue
                 numero = mensaje.get("from")
                 mensaje_id = mensaje.get("id")
-                bloque_texto = mensaje.get("text", {})
-                texto = (
-                    bloque_texto.get("body")
-                    if isinstance(bloque_texto, dict)
-                    else None
-                )
+                tipo = mensaje.get("type")
+                texto = None
+                if tipo == "text":
+                    bloque_texto = mensaje.get("text", {})
+                    texto = (
+                        bloque_texto.get("body")
+                        if isinstance(bloque_texto, dict)
+                        else None
+                    )
+                elif tipo == "interactive":
+                    bloque_interactivo = mensaje.get("interactive", {})
+                    if (
+                        isinstance(bloque_interactivo, dict)
+                        and bloque_interactivo.get("type") == "button_reply"
+                    ):
+                        boton = bloque_interactivo.get("button_reply", {})
+                        texto = (
+                            boton.get("id")
+                            if isinstance(boton, dict)
+                            else None
+                        )
                 if all(
                     isinstance(valor, str) and valor.strip()
                     for valor in (numero, mensaje_id, texto)
@@ -291,7 +339,7 @@ def crear_app(
 
             entregado = True
             for respuesta in resultado.respuestas:
-                if not enviar_mensaje_texto(numero, respuesta.texto):
+                if not enviar_respuesta(numero, respuesta):
                     entregado = False
                     errores_envio += 1
                     break

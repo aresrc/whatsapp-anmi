@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS conversaciones_activas (
         estado IN (
             'esperando_meses',
             'esperando_alimentos',
+            'esperando_edad_receta',
             'lista',
             'esperando_calificacion'
         )
@@ -22,7 +23,14 @@ CREATE TABLE IF NOT EXISTS conversaciones_activas (
         strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
     ),
     meses_bebe INTEGER
-        CHECK (meses_bebe IS NULL OR meses_bebe BETWEEN 0 AND 59),
+        CHECK (meses_bebe IS NULL OR meses_bebe BETWEEN 6 AND 36),
+    rango_edad_bebe TEXT CHECK (
+        rango_edad_bebe IS NULL
+        OR rango_edad_bebe IN (
+            '6-8', '9-11', '12-23',
+            '6-12', '12-24', '24-36'
+        )
+    ),
     alimentos_contexto TEXT,
     calificacion_pendiente INTEGER
         CHECK (
@@ -67,7 +75,14 @@ CREATE TABLE IF NOT EXISTS consultas_finalizadas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fecha_hora_cierre TEXT NOT NULL,
     meses_bebe INTEGER
-        CHECK (meses_bebe IS NULL OR meses_bebe BETWEEN 0 AND 24),
+        CHECK (meses_bebe IS NULL OR meses_bebe BETWEEN 6 AND 36),
+    rango_edad_bebe TEXT CHECK (
+        rango_edad_bebe IS NULL
+        OR rango_edad_bebe IN (
+            '6-8', '9-11', '12-23',
+            '6-12', '12-24', '24-36'
+        )
+    ),
     calificacion INTEGER NOT NULL CHECK (calificacion BETWEEN 1 AND 5)
 );
 
