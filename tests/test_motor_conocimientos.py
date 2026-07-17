@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
+import re
 import unittest
 from pathlib import Path
 
@@ -19,6 +22,22 @@ ENCABEZADOS_V2 = [
     "Enlace",
 ]
 
+PREFIJOS_VISUALES = (
+    "🆘 ",
+    "⚠️ ",
+    "🍲 ",
+    "🍊 ",
+    "🥗 ",
+    "💊 ",
+    "🥄 ",
+    "🛡️ ",
+    "🩺 ",
+    "ℹ️ ",
+)
+HUELLA_RESPUESTAS_ANTES_DEL_FORMATO = (
+    "0f363cf1772145061ed73e21d81c45bd650e026292627c383d4fd9c5ea8d1514"
+)
+
 
 def _sin_una_pareja_de_comillas(texto: str) -> str:
     """Replica de forma independiente el contrato de limpieza del CSV."""
@@ -27,6 +46,17 @@ def _sin_una_pareja_de_comillas(texto: str) -> str:
     if len(limpio) >= 2 and limpio[0] == limpio[-1] == '"':
         return limpio[1:-1]
     return limpio
+
+
+def _retirar_formato_visual(texto: str) -> str:
+    """Retira exclusivamente la presentacion agregada a las respuestas."""
+
+    limpio = _sin_una_pareja_de_comillas(texto)
+    for prefijo in PREFIJOS_VISUALES:
+        if limpio.startswith(prefijo):
+            limpio = limpio.removeprefix(prefijo)
+            break
+    return f'"{limpio.replace("*", "").replace(chr(10), " ")}"'
 
 
 class CsvMotorConocimientosV2Tests(unittest.TestCase):
@@ -113,6 +143,70 @@ class CsvMotorConocimientosV2Tests(unittest.TestCase):
         self.assertTrue(
             all("emergencia" in motor.normalizar_texto(regla.categoria)
                 for regla in reglas_con_alerta)
+        )
+
+    def test_aplica_formato_visual_a_la_mayoria_de_respuestas(self) -> None:
+        respuestas_con_negrita = [
+            regla.respuesta
+            for regla in self.reglas
+            if re.search(r"\*[^*\n]+\*", regla.respuesta)
+        ]
+
+        self.assertTrue(
+            all(
+                regla.respuesta.startswith(PREFIJOS_VISUALES)
+                for regla in self.reglas
+            )
+        )
+        self.assertGreaterEqual(len(respuestas_con_negrita), 300)
+
+    def test_recetas_minsa_tienen_emoji_negrita_y_pasos_separados(self) -> None:
+        recetas = [
+            regla
+            for regla in self.reglas
+            if "recetas minsa" in motor.normalizar_texto(regla.categoria)
+        ]
+
+        self.assertEqual(len(recetas), 14)
+        for receta in recetas:
+            with self.subTest(subcategoria=receta.subcategoria):
+                self.assertTrue(receta.respuesta.startswith("🍲 "))
+                self.assertRegex(receta.respuesta, r"\*'[^']+'\*")
+                self.assertIn("\n*1.*", receta.respuesta)
+                self.assertIn("\n*2.*", receta.respuesta)
+
+    def test_listas_numeradas_usan_saltos_de_linea_reales(self) -> None:
+        respuestas_con_lista = [
+            regla.respuesta
+            for regla in self.reglas
+            if "\n" in regla.respuesta
+        ]
+
+        self.assertEqual(len(respuestas_con_lista), 35)
+        for respuesta in respuestas_con_lista:
+            with self.subTest(respuesta=respuesta[:80]):
+                self.assertNotIn(r"\n", respuesta)
+                self.assertRegex(respuesta, r"\n\*(?:\d+\.|Paso \d+:)\*")
+
+    def test_formato_no_cambia_el_contenido_medico_de_las_respuestas(self) -> None:
+        respuestas_sin_formato = [
+            {
+                "ID": fila["ID"],
+                "respuesta": _retirar_formato_visual(
+                    fila[ENCABEZADOS_V2[4]]
+                ),
+            }
+            for fila in self.filas
+        ]
+        contenido = json.dumps(
+            respuestas_sin_formato,
+            ensure_ascii=False,
+            sort_keys=True,
+        ).encode()
+
+        self.assertEqual(
+            hashlib.sha256(contenido).hexdigest(),
+            HUELLA_RESPUESTAS_ANTES_DEL_FORMATO,
         )
 
 

@@ -636,7 +636,7 @@ class ServicioConversacion:
             RespuestaConversacion(
                 texto=f"Documento:\n{regla.documento.strip()} pag. {regla.paginas.strip()}"
             ),
-            RespuestaConversacion(texto=f"Enlace:\n{enlace}"),
+            RespuestaConversacion(texto=f"Fuente:\n{enlace}"),
             RespuestaConversacion(texto=MENSAJE_RECORDATORIO_FIN),
         )
 
