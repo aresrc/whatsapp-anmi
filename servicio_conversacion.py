@@ -97,11 +97,11 @@ MENSAJE_LISTA_SIN_BEBE = (
 )
 MENSAJE_CALIFICACION = (
     "⭐ ¿Cómo calificarías la atención de ANMI?\n\n"
-    "1. Mala ⭐\n"
-    "2. Neutral ⭐⭐\n"
-    "3. Buena ⭐⭐⭐\n"
-    "4. Muy Buena ⭐⭐⭐⭐\n"
-    "5. Excelente ⭐⭐⭐⭐⭐\n\n"
+    "1. ⭐Mala \n"
+    "2. ⭐⭐Neutral \n"
+    "3. ⭐⭐⭐Buena \n"
+    "4. ⭐⭐⭐⭐Muy Buena \n"
+    "5. ⭐⭐⭐⭐⭐Excelente \n\n"
     "Responde solo con un número del 1 al 5."
 )
 MENSAJE_CALIFICACION_INVALIDA = (
