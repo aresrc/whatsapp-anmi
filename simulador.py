@@ -16,8 +16,6 @@ from clasificador_google import crear_clasificador_google
 from conversaciones import RepositorioConversaciones
 from motor_conocimientos import cargar_motor_conocimientos
 from servicio_conversacion import (
-    ESTADO_ESPERANDO_MESES,
-    OPCIONES_EDAD,
     LimpiezaPeriodica,
     ServicioConversacion,
 )
@@ -125,6 +123,10 @@ def crear_app_simulador(
             mensajes = servicio.obtener_mensajes("simulador", usuario)
         if estado is None:
             estado = servicio.obtener_estado("simulador", usuario)
+        respuesta_interactiva = servicio.obtener_respuesta_interactiva(
+            "simulador",
+            usuario,
+        )
         respuesta = make_response(
             render_template(
                 "simulador.html",
@@ -133,8 +135,7 @@ def crear_app_simulador(
                 depuracion=_preparar_depuracion(depuracion),
                 error=error,
                 usuario_id=usuario[-8:],
-                estado_esperando_meses=ESTADO_ESPERANDO_MESES,
-                opciones_edad=OPCIONES_EDAD,
+                respuesta_interactiva=respuesta_interactiva,
             )
         )
         if nueva_cookie:

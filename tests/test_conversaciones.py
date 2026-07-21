@@ -749,6 +749,27 @@ class RepositorioConversacionesTests(unittest.TestCase):
         with self.assertRaises(ConversacionNoEncontradaError):
             self.repositorio.finalizar_conversacion(999_999, 5)
 
+    def test_persistencia_de_categoria_y_pagina_del_menu(self) -> None:
+        conversacion = self.repositorio.crear_conversacion(
+            "simulador",
+            "usuario-menu",
+        )
+        actualizada = self.repositorio.actualizar_conversacion(
+            conversacion.id,
+            estado="menu_especifico",
+            categoria_menu="Alimentación (Bebés)",
+            pagina_menu=3,
+        )
+        self.assertEqual(actualizada.estado, "menu_especifico")
+        self.assertEqual(actualizada.categoria_menu, "Alimentación (Bebés)")
+        self.assertEqual(actualizada.pagina_menu, 3)
+
+        with self.assertRaisesRegex(ValueError, "pagina_menu"):
+            self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                pagina_menu=-1,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

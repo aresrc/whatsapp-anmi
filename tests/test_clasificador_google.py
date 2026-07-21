@@ -272,6 +272,23 @@ class ClasificadorGoogleTest(unittest.TestCase):
                 ContextoClasificacion(),
             )
 
+    def test_rechaza_id_fuera_del_conjunto_permitido(self) -> None:
+        cliente = ClienteFalso(("ANMI-0001",))
+        clasificador = ClasificadorGoogle(
+            "clave-prueba",
+            crear_catalogo(),
+            cliente=cliente,
+        )
+        contexto = ContextoClasificacion(
+            ids_permitidos=("ANMI-0157",),
+            alimentos_aceptados=("bazo",),
+            ingredientes_por_id={"ANMI-0157": ("bazo", "papa")},
+        )
+
+        with self.assertRaisesRegex(ErrorClasificacionGoogle, "no permitido"):
+            clasificador.seleccionar("come bazo", contexto)
+        self.assertIn("ids_permitidos", cliente.models.llamadas[0]["contents"])
+
     def test_sin_api_google_no_intenta_cargar_catalogos(self) -> None:
         self.assertIsNone(
             crear_clasificador_google(

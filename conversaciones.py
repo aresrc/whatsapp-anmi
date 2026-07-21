@@ -28,8 +28,8 @@ DIRECTORIO_PROYECTO = Path(__file__).resolve().parent
 RUTA_ESQUEMA_PREDETERMINADA = DIRECTORIO_PROYECTO / "schema.sql"
 RUTA_BD_PREDETERMINADA = DIRECTORIO_PROYECTO / "instance" / "anmi.sqlite3"
 ESTADO_INICIAL = "esperando_meses"
-RANGOS_EDAD_BEBE = frozenset({"6-12", "12-24", "24-36"})
-RANGOS_EDAD_BEBE_LEGACY = frozenset({"6-8", "9-11", "12-23"})
+RANGOS_EDAD_BEBE = frozenset({"6-8", "9-11", "12-23"})
+RANGOS_EDAD_BEBE_LEGACY = frozenset({"6-12", "12-24", "24-36"})
 RANGOS_EDAD_BEBE_PERSISTIDOS = (
     RANGOS_EDAD_BEBE | RANGOS_EDAD_BEBE_LEGACY
 )
@@ -39,6 +39,8 @@ ESTADOS_CONVERSACION = frozenset(
         "esperando_alimentos",
         "esperando_edad_receta",
         "lista",
+        "menu_general",
+        "menu_especifico",
         "esperando_calificacion",
     }
 )
@@ -69,6 +71,8 @@ class ConversacionActiva:
     meses_bebe: int | None
     rango_edad_bebe: str | None
     alimentos_contexto: str | None
+    categoria_menu: str | None
+    pagina_menu: int
     calificacion_pendiente: int | None
 
 
@@ -169,8 +173,11 @@ def _validar_meses(meses_bebe: int | None) -> None:
 
 
 def _validar_rango_edad(rango_edad_bebe: str | None) -> None:
-    if rango_edad_bebe is not None and rango_edad_bebe not in RANGOS_EDAD_BEBE:
-        permitidos = ", ".join(sorted(RANGOS_EDAD_BEBE))
+    if (
+        rango_edad_bebe is not None
+        and rango_edad_bebe not in RANGOS_EDAD_BEBE_PERSISTIDOS
+    ):
+        permitidos = ", ".join(sorted(RANGOS_EDAD_BEBE_PERSISTIDOS))
         raise ValueError(
             f"rango_edad_bebe debe ser uno de {permitidos} o None"
         )
@@ -255,8 +262,9 @@ class RepositorioConversaciones:
                 "La migración de edades dejó referencias inválidas"
             )
 
-    @staticmethod
+    @classmethod
     def _tabla_edades_necesita_migracion(
+        cls,
         conexion: sqlite3.Connection,
         tabla: str,
     ) -> bool:
@@ -273,9 +281,13 @@ class RepositorioConversaciones:
             )
         )
         if tabla == "conversaciones_activas":
+            columnas = cls._columnas_tabla(conexion, tabla)
             restricciones_actualizadas = (
                 restricciones_actualizadas
                 and "'esperando_edad_receta'" in sql
+                and "'menu_general'" in sql
+                and "'menu_especifico'" in sql
+                and {"categoria_menu", "pagina_menu"} <= columnas
             )
         return not restricciones_actualizadas
 
@@ -335,6 +347,15 @@ class RepositorioConversaciones:
             conexion,
             "conversaciones_activas",
         )
+        columnas = cls._columnas_tabla(conexion, "conversaciones_activas")
+        categoria_menu = (
+            "categoria_menu" if "categoria_menu" in columnas else "NULL"
+        )
+        pagina_menu = (
+            "CASE WHEN pagina_menu >= 0 THEN pagina_menu ELSE 0 END"
+            if "pagina_menu" in columnas
+            else "0"
+        )
         conexion.executescript(
             f"""
             DROP TABLE IF EXISTS conversaciones_activas_nueva;
@@ -349,6 +370,8 @@ class RepositorioConversaciones:
                         'esperando_alimentos',
                         'esperando_edad_receta',
                         'lista',
+                        'menu_general',
+                        'menu_especifico',
                         'esperando_calificacion'
                     )
                 ),
@@ -368,6 +391,12 @@ class RepositorioConversaciones:
                     )
                 ),
                 alimentos_contexto TEXT,
+                categoria_menu TEXT CHECK (
+                    categoria_menu IS NULL
+                    OR length(trim(categoria_menu)) > 0
+                ),
+                pagina_menu INTEGER NOT NULL DEFAULT 0
+                    CHECK (pagina_menu >= 0),
                 calificacion_pendiente INTEGER CHECK (
                     calificacion_pendiente IS NULL
                     OR calificacion_pendiente BETWEEN 1 AND 5
@@ -378,6 +407,7 @@ class RepositorioConversaciones:
                 id, canal, usuario_temporal, estado,
                 fecha_inicio_utc, fecha_ultima_actividad_utc,
                 meses_bebe, rango_edad_bebe, alimentos_contexto,
+                categoria_menu, pagina_menu,
                 calificacion_pendiente
             )
             SELECT
@@ -388,6 +418,10 @@ class RepositorioConversaciones:
                 {meses}, {rango},
                 CASE WHEN {perfil_invalido}
                     THEN NULL ELSE alimentos_contexto END,
+                CASE WHEN {perfil_invalido}
+                    THEN NULL ELSE {categoria_menu} END,
+                CASE WHEN {perfil_invalido}
+                    THEN 0 ELSE {pagina_menu} END,
                 CASE WHEN {perfil_invalido}
                     THEN NULL ELSE calificacion_pendiente END
             FROM conversaciones_activas;
@@ -569,6 +603,8 @@ class RepositorioConversaciones:
         meses_bebe: int | None | object = _SIN_CAMBIO,
         rango_edad_bebe: str | None | object = _SIN_CAMBIO,
         alimentos_contexto: str | None | object = _SIN_CAMBIO,
+        categoria_menu: str | None | object = _SIN_CAMBIO,
+        pagina_menu: int | object = _SIN_CAMBIO,
         calificacion_pendiente: int | None | object = _SIN_CAMBIO,
         ahora: datetime | None = None,
     ) -> ConversacionActiva:
@@ -611,6 +647,28 @@ class RepositorioConversaciones:
                 if isinstance(alimentos_contexto, str)
                 else None
             )
+        if categoria_menu is not _SIN_CAMBIO:
+            if categoria_menu is not None and not isinstance(
+                categoria_menu,
+                str,
+            ):
+                raise ValueError("categoria_menu debe ser texto o None")
+            asignaciones.append("categoria_menu = ?")
+            parametros.append(
+                categoria_menu.strip()
+                if isinstance(categoria_menu, str)
+                and categoria_menu.strip()
+                else None
+            )
+        if pagina_menu is not _SIN_CAMBIO:
+            if (
+                isinstance(pagina_menu, bool)
+                or not isinstance(pagina_menu, int)
+                or pagina_menu < 0
+            ):
+                raise ValueError("pagina_menu debe ser un entero no negativo")
+            asignaciones.append("pagina_menu = ?")
+            parametros.append(pagina_menu)
         if calificacion_pendiente is not _SIN_CAMBIO:
             _validar_calificacion(  # type: ignore[arg-type]
                 calificacion_pendiente
@@ -1189,6 +1247,8 @@ class RepositorioConversaciones:
             meses_bebe=fila["meses_bebe"],
             rango_edad_bebe=fila["rango_edad_bebe"],
             alimentos_contexto=fila["alimentos_contexto"],
+            categoria_menu=fila["categoria_menu"],
+            pagina_menu=fila["pagina_menu"],
             calificacion_pendiente=fila["calificacion_pendiente"],
         )
 

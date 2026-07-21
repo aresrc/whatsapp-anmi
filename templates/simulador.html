@@ -601,9 +601,9 @@
           {% endif %}
         </div>
 
-        {% if estado == estado_esperando_meses %}
-          <div class="opciones-edad" aria-label="Rangos de edad disponibles">
-            {% for opcion in opciones_edad %}
+        {% if respuesta_interactiva and respuesta_interactiva.opciones %}
+          <div class="opciones-edad" aria-label="Opciones disponibles">
+            {% for opcion in respuesta_interactiva.opciones %}
               <form method="post" action="{{ url_for('enviar_mensaje_simulador') }}">
                 <input type="hidden" name="mensaje" value="{{ opcion.id }}">
                 <button class="boton boton--secundario" type="submit">

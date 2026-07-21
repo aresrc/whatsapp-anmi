@@ -32,6 +32,53 @@ class ReglaConocimiento:
     paginas: str = ""
     documento: str = ""
     enlace: str = ""
+    id_regla: str = ""
+
+
+@dataclass(frozen=True)
+class IngredienteReceta:
+    """Ingrediente normalizado usado para comparar gustos y recetas."""
+
+    clave: str
+    nombre: str
+    grupo: str
+    alias: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PerfilAlimentario:
+    """Preferencias declaradas por la persona cuidadora."""
+
+    aceptados: tuple[str, ...]
+    rechazados: tuple[str, ...]
+    excluidos: tuple[str, ...]
+
+    @property
+    def reconocido(self) -> bool:
+        return bool(self.aceptados or self.rechazados or self.excluidos)
+
+
+@dataclass(frozen=True)
+class PerfilReceta:
+    """Relación controlada entre una receta revisada y sus ingredientes."""
+
+    regla: ReglaConocimiento
+    ingredientes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ResultadoReceta:
+    """Resultado del ranking local de recetas compatibles con la edad."""
+
+    perfil_receta: PerfilReceta
+    puntaje: float
+    aceptados: tuple[str, ...]
+    rechazados: tuple[str, ...]
+    desconocidos: tuple[str, ...]
+
+    @property
+    def regla(self) -> ReglaConocimiento:
+        return self.perfil_receta.regla
 
 
 @dataclass(frozen=True)
@@ -131,6 +178,7 @@ RUTA_CSV = (
 )
 
 COLUMNA_CATEGORIA = "Categoría"
+COLUMNA_ID = "ID"
 COLUMNA_SUBCATEGORIA = "Subcategoría"
 COLUMNA_PALABRAS = "Palabras Clave (Para el bot)"
 COLUMNA_RESPUESTA = (
@@ -378,6 +426,7 @@ def cargar_motor_conocimientos(
         raise FileNotFoundError(f"No se encontró el archivo CSV: {ruta}")
 
     columnas_requeridas = {
+        COLUMNA_ID,
         COLUMNA_CATEGORIA,
         COLUMNA_SUBCATEGORIA,
         COLUMNA_PALABRAS,
@@ -388,6 +437,7 @@ def cargar_motor_conocimientos(
         COLUMNA_ENLACE,
     }
     reglas: list[ReglaConocimiento] = []
+    ids_vistos: set[str] = set()
 
     with ruta.open(mode="r", encoding="utf-8-sig", newline="") as archivo:
         lector = csv.DictReader(archivo)
@@ -400,6 +450,7 @@ def cargar_motor_conocimientos(
             )
 
         for numero_fila, fila in enumerate(lector, start=2):
+            id_regla = (fila.get(COLUMNA_ID, "") or "").strip()
             palabras_clave = separar_palabras_clave(
                 fila.get(COLUMNA_PALABRAS, "") or ""
             )
@@ -409,6 +460,14 @@ def cargar_motor_conocimientos(
             disclaimer = _quitar_comillas_externas(
                 fila.get(COLUMNA_DISCLAIMER, "") or ""
             )
+
+            if not re.fullmatch(r"ANMI-\d{4}", id_regla):
+                raise ValueError(
+                    f"La fila {numero_fila} tiene un ID inválido: {id_regla!r}"
+                )
+            if id_regla in ids_vistos:
+                raise ValueError(f"ID duplicado en el CSV: {id_regla}")
+            ids_vistos.add(id_regla)
 
             if not palabras_clave:
                 logging.warning(
@@ -435,6 +494,7 @@ def cargar_motor_conocimientos(
                     paginas=(fila.get(COLUMNA_PAGINAS, "") or "").strip(),
                     documento=(fila.get(COLUMNA_DOCUMENTO, "") or "").strip(),
                     enlace=(fila.get(COLUMNA_ENLACE, "") or "").strip(),
+                    id_regla=id_regla,
                 )
             )
 
@@ -959,3 +1019,459 @@ def construir_respuesta(
     if regla_seleccionada.disclaimer.strip():
         partes.append(regla_seleccionada.disclaimer.strip())
     return "\n\n".join(partes)
+
+
+GRUPO_BLANDOS = "Alimentos blandos o bases"
+GRUPO_HIERRO = "Alimentos ricos en hierro"
+GRUPO_OTROS = "Otros ingredientes"
+
+INGREDIENTES_RECETAS: tuple[IngredienteReceta, ...] = (
+    IngredienteReceta("papa", "papa", GRUPO_BLANDOS, ("papa", "papa amarilla")),
+    IngredienteReceta("camote", "camote", GRUPO_BLANDOS, ("camote",)),
+    IngredienteReceta("zapallo", "zapallo", GRUPO_BLANDOS, ("zapallo",)),
+    IngredienteReceta("arroz", "arroz", GRUPO_BLANDOS, ("arroz",)),
+    IngredienteReceta("semola", "sémola", GRUPO_BLANDOS, ("semola",)),
+    IngredienteReceta(
+        "fideos",
+        "fideos o tallarines",
+        GRUPO_BLANDOS,
+        ("fideo", "fideos", "tallarin", "tallarines"),
+    ),
+    IngredienteReceta("habas", "habas", GRUPO_BLANDOS, ("haba", "habas")),
+    IngredienteReceta("trigo", "trigo", GRUPO_BLANDOS, ("trigo",)),
+    IngredienteReceta("yuca", "yuca", GRUPO_BLANDOS, ("yuca",)),
+    IngredienteReceta(
+        "arvejas",
+        "arvejas",
+        GRUPO_BLANDOS,
+        ("arveja", "arvejas"),
+    ),
+    IngredienteReceta("bazo", "bazo", GRUPO_HIERRO, ("bazo",)),
+    IngredienteReceta("bofe", "bofe", GRUPO_HIERRO, ("bofe",)),
+    IngredienteReceta(
+        "higado",
+        "hígado",
+        GRUPO_HIERRO,
+        ("higado", "higado de pollo", "higado de res"),
+    ),
+    IngredienteReceta(
+        "sangrecita",
+        "sangrecita",
+        GRUPO_HIERRO,
+        ("sangrecita", "sangre de pollo"),
+    ),
+    IngredienteReceta(
+        "pescado",
+        "pescado",
+        GRUPO_HIERRO,
+        ("pescado", "bonito"),
+    ),
+    IngredienteReceta(
+        "zanahoria",
+        "zanahoria",
+        GRUPO_OTROS,
+        ("zanahoria",),
+    ),
+    IngredienteReceta(
+        "espinaca",
+        "espinaca",
+        GRUPO_OTROS,
+        ("espinaca",),
+    ),
+    IngredienteReceta("leche", "leche", GRUPO_OTROS, ("leche",)),
+    IngredienteReceta(
+        "cebolla",
+        "cebolla",
+        GRUPO_OTROS,
+        ("cebolla",),
+    ),
+    IngredienteReceta("ajo", "ajo", GRUPO_OTROS, ("ajo", "ajos")),
+    IngredienteReceta(
+        "aceite",
+        "aceite vegetal",
+        GRUPO_OTROS,
+        ("aceite", "aceite vegetal"),
+    ),
+    IngredienteReceta("tomate", "tomate", GRUPO_OTROS, ("tomate",)),
+    IngredienteReceta(
+        "albahaca",
+        "albahaca",
+        GRUPO_OTROS,
+        ("albahaca",),
+    ),
+    IngredienteReceta(
+        "culantro",
+        "culantro",
+        GRUPO_OTROS,
+        ("culantro", "cilantro"),
+    ),
+    IngredienteReceta(
+        "aji_amarillo",
+        "ají amarillo",
+        GRUPO_OTROS,
+        ("aji amarillo", "aji"),
+    ),
+    IngredienteReceta(
+        "pan_rallado",
+        "pan rallado",
+        GRUPO_OTROS,
+        ("pan rallado", "pan"),
+    ),
+    IngredienteReceta("choclo", "choclo", GRUPO_OTROS, ("choclo",)),
+    IngredienteReceta(
+        "queso",
+        "queso fresco",
+        GRUPO_OTROS,
+        ("queso", "queso fresco"),
+    ),
+    IngredienteReceta("huevo", "huevo", GRUPO_OTROS, ("huevo",)),
+    IngredienteReceta(
+        "harina",
+        "harina de trigo",
+        GRUPO_OTROS,
+        ("harina", "harina de trigo"),
+    ),
+    IngredienteReceta(
+        "pimiento",
+        "pimiento",
+        GRUPO_OTROS,
+        ("pimiento",),
+    ),
+)
+
+_INGREDIENTES_POR_CLAVE = {
+    ingrediente.clave: ingrediente for ingrediente in INGREDIENTES_RECETAS
+}
+
+# El CSV no tiene una columna de ingredientes. Esta relación controlada se
+# limita a los ingredientes que aparecen literalmente en los pasos revisados
+# y evita inferir o reescribir contenido médico.
+_CLAVES_POR_ID_RECETA: Mapping[str, tuple[str, ...]] = {
+    "ANMI-0157": ("bazo", "zanahoria", "espinaca", "semola", "aceite"),
+    "ANMI-0158": ("bofe", "papa", "leche", "aceite", "cebolla", "ajo"),
+    "ANMI-0159": ("bazo", "camote", "arroz"),
+    "ANMI-0160": ("higado", "arvejas", "papa", "aceite"),
+    "ANMI-0161": ("sangrecita", "tomate", "cebolla", "papa", "aceite"),
+    "ANMI-0162": (
+        "higado",
+        "fideos",
+        "papa",
+        "espinaca",
+        "albahaca",
+        "aceite",
+    ),
+    "ANMI-0163": ("sangrecita", "habas", "cebolla", "tomate"),
+    "ANMI-0164": (
+        "higado",
+        "aceite",
+        "cebolla",
+        "ajo",
+        "culantro",
+        "arvejas",
+        "arroz",
+        "yuca",
+    ),
+    "ANMI-0165": (
+        "pescado",
+        "aceite",
+        "cebolla",
+        "aji_amarillo",
+        "leche",
+        "pan_rallado",
+        "papa",
+        "arroz",
+    ),
+    "ANMI-0166": (
+        "higado",
+        "zapallo",
+        "cebolla",
+        "ajo",
+        "choclo",
+        "queso",
+        "arroz",
+    ),
+    "ANMI-0167": (
+        "sangrecita",
+        "trigo",
+        "cebolla",
+        "ajo",
+        "zanahoria",
+        "arvejas",
+    ),
+    "ANMI-0168": ("bazo", "huevo", "harina", "espinaca", "aceite"),
+    "ANMI-0169": (
+        "bofe",
+        "aceite",
+        "cebolla",
+        "tomate",
+        "pimiento",
+        "arroz",
+        "papa",
+    ),
+    "ANMI-0170": (
+        "sangrecita",
+        "huevo",
+        "harina",
+        "espinaca",
+        "aceite",
+    ),
+}
+
+
+def _ingrediente_aparece_en_texto(
+    ingrediente: IngredienteReceta,
+    texto: str,
+) -> bool:
+    normalizado = normalizar_texto(texto)
+    return any(
+        contiene_frase(normalizado, normalizar_texto(alias))
+        for alias in ingrediente.alias
+    )
+
+
+def obtener_perfiles_recetas(
+    reglas: Sequence[ReglaConocimiento],
+) -> tuple[PerfilReceta, ...]:
+    """Construye perfiles únicamente para las recetas MINSA conocidas."""
+
+    perfiles: list[PerfilReceta] = []
+    for regla in reglas:
+        claves = _CLAVES_POR_ID_RECETA.get(regla.id_regla)
+        if claves is None:
+            continue
+        if not normalizar_texto(regla.categoria).startswith("recetas minsa"):
+            raise ValueError(
+                f"{regla.id_regla} no pertenece a una categoría de recetas"
+            )
+        for clave in claves:
+            ingrediente = _INGREDIENTES_POR_CLAVE[clave]
+            if not _ingrediente_aparece_en_texto(
+                ingrediente,
+                f"{regla.respuesta} {' '.join(regla.palabras_clave)}",
+            ):
+                raise ValueError(
+                    f"{ingrediente.nombre!r} no aparece en {regla.id_regla}"
+                )
+        perfiles.append(PerfilReceta(regla=regla, ingredientes=claves))
+    return tuple(perfiles)
+
+
+def obtener_grupos_alimentos(
+    perfiles: Sequence[PerfilReceta],
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Agrupa los ingredientes usados por al menos una receta revisada."""
+
+    usados = {
+        clave for perfil in perfiles for clave in perfil.ingredientes
+    }
+    resultado: list[tuple[str, tuple[str, ...]]] = []
+    for grupo in (GRUPO_BLANDOS, GRUPO_HIERRO, GRUPO_OTROS):
+        nombres = tuple(
+            ingrediente.nombre
+            for ingrediente in INGREDIENTES_RECETAS
+            if ingrediente.grupo == grupo and ingrediente.clave in usados
+        )
+        resultado.append((grupo, nombres))
+    return tuple(resultado)
+
+
+def nombres_ingredientes(claves: Sequence[str]) -> tuple[str, ...]:
+    """Convierte claves internas en nombres seguros para mostrar al usuario."""
+
+    return tuple(
+        _INGREDIENTES_POR_CLAVE[clave].nombre
+        for clave in claves
+        if clave in _INGREDIENTES_POR_CLAVE
+    )
+
+
+_SEPARADOR_PREFERENCIAS = re.compile(
+    r"\s*(?:\bseparadorpreferencia\b|\bpero\b|\baunque\b|\bsin embargo\b|"
+    r"\by\s+(?=(?:no|come|acepta|tolera|puede|odia|rechaza|alerg|si|le\s+gusta)\b))\s*"
+)
+_SENALES_EXCLUSION = (
+    "alerg",
+    "intoler",
+    "no puede",
+    "le hace dano",
+    "le cae mal",
+    "prohibido",
+)
+_SENALES_RECHAZO = (
+    "no ",
+    "no le gusta",
+    "no come",
+    "odia",
+    "rechaza",
+    "detesta",
+    "asco",
+)
+_SENALES_ACEPTACION = (
+    "come",
+    "gusta",
+    "acepta",
+    "tolera",
+    "puede comer",
+    "si come",
+)
+
+
+def _alias_en_fragmento(alias: str, fragmento: str) -> bool:
+    alias_normalizado = normalizar_texto(alias)
+    if contiene_frase(fragmento, alias_normalizado):
+        return True
+    if " " in alias_normalizado or len(alias_normalizado) < 4:
+        return False
+    limite = 1 if len(alias_normalizado) <= 5 else 2
+    for token in fragmento.split():
+        if abs(len(token) - len(alias_normalizado)) > limite:
+            continue
+        distancia = _distancia_levenshtein(
+            token,
+            alias_normalizado,
+            limite,
+        )
+        similitud = 1.0 - distancia / max(len(token), len(alias_normalizado))
+        if distancia <= limite and similitud >= 0.80:
+            return True
+    return False
+
+
+def _claves_en_fragmento(fragmento: str) -> set[str]:
+    encontradas: set[str] = set()
+    for ingrediente in INGREDIENTES_RECETAS:
+        if any(
+            _alias_en_fragmento(alias, fragmento)
+            for alias in ingrediente.alias
+        ):
+            encontradas.add(ingrediente.clave)
+    return encontradas
+
+
+def extraer_perfil_alimentario(texto: str) -> PerfilAlimentario:
+    """Detecta alimentos aceptados, rechazados y excluidos por seguridad."""
+
+    normalizado = normalizar_texto(texto)
+    todas_las_claves = {ingrediente.clave for ingrediente in INGREDIENTES_RECETAS}
+    if re.search(r"\b(?:come|acepta|tolera)\s+de\s+todo\b", normalizado):
+        return PerfilAlimentario(tuple(sorted(todas_las_claves)), (), ())
+    if re.search(r"\b(?:no\s+come|rechaza|odia)\s+(?:de\s+)?todo\b", normalizado):
+        return PerfilAlimentario((), tuple(sorted(todas_las_claves)), ())
+
+    aceptados: set[str] = set()
+    rechazados: set[str] = set()
+    excluidos: set[str] = set()
+    estado_actual = "aceptado"
+    texto_con_separadores = re.sub(
+        r"[,;\n.]",
+        " separadorpreferencia ",
+        texto,
+    )
+    normalizado_con_separadores = normalizar_texto(texto_con_separadores)
+    fragmentos = [
+        fragmento.strip()
+        for fragmento in _SEPARADOR_PREFERENCIAS.split(
+            normalizado_con_separadores
+        )
+        if fragmento.strip()
+    ]
+    for fragmento in fragmentos:
+        if any(senal in fragmento for senal in _SENALES_EXCLUSION):
+            estado_actual = "excluido"
+        elif any(senal in f"{fragmento} " for senal in _SENALES_RECHAZO):
+            estado_actual = "rechazado"
+        elif any(senal in fragmento for senal in _SENALES_ACEPTACION):
+            estado_actual = "aceptado"
+
+        claves = _claves_en_fragmento(fragmento)
+        if estado_actual == "excluido":
+            excluidos.update(claves)
+        elif estado_actual == "rechazado":
+            rechazados.update(claves)
+        else:
+            aceptados.update(claves)
+
+    rechazados.difference_update(excluidos)
+    aceptados.difference_update(rechazados | excluidos)
+    return PerfilAlimentario(
+        aceptados=tuple(sorted(aceptados)),
+        rechazados=tuple(sorted(rechazados)),
+        excluidos=tuple(sorted(excluidos)),
+    )
+
+
+def rango_receta_de_regla(regla: ReglaConocimiento) -> str | None:
+    """Extrae el rango ``6-8``, ``9-11`` o ``12-23`` de una receta."""
+
+    coincidencia = re.fullmatch(
+        r"recetas minsa (6 8|9 11|12 23)m",
+        normalizar_texto(regla.categoria),
+    )
+    return coincidencia.group(1).replace(" ", "-") if coincidencia else None
+
+
+def filtrar_recetas_por_edad(
+    perfiles: Sequence[PerfilReceta],
+    *,
+    meses_bebe: int | None = None,
+    rango_edad_bebe: str | None = None,
+) -> tuple[PerfilReceta, ...]:
+    """Filtra recetas sin cruzar los rangos etarios revisados."""
+
+    rango_objetivo: str | None = None
+    if meses_bebe is not None:
+        for rango in ("6-8", "9-11", "12-23"):
+            minimo, maximo = (int(valor) for valor in rango.split("-"))
+            if minimo <= meses_bebe <= maximo:
+                rango_objetivo = rango
+                break
+    elif rango_edad_bebe in {"6-8", "9-11", "12-23"}:
+        rango_objetivo = rango_edad_bebe
+
+    if rango_objetivo is None:
+        return ()
+    return tuple(
+        perfil
+        for perfil in perfiles
+        if rango_receta_de_regla(perfil.regla) == rango_objetivo
+    )
+
+
+def rankear_recetas(
+    perfiles: Sequence[PerfilReceta],
+    perfil_alimentario: PerfilAlimentario,
+) -> ResultadoReceta | None:
+    """Elige la mejor coincidencia local; una exclusión elimina la receta."""
+
+    aceptados = set(perfil_alimentario.aceptados)
+    rechazados = set(perfil_alimentario.rechazados)
+    excluidos = set(perfil_alimentario.excluidos)
+    resultados: list[ResultadoReceta] = []
+    for perfil in perfiles:
+        ingredientes = set(perfil.ingredientes)
+        if ingredientes & excluidos:
+            continue
+        coincidentes = tuple(sorted(ingredientes & aceptados))
+        no_gustan = tuple(sorted(ingredientes & rechazados))
+        desconocidos = tuple(
+            sorted(ingredientes - aceptados - rechazados - excluidos)
+        )
+        resultados.append(
+            ResultadoReceta(
+                perfil_receta=perfil,
+                puntaje=5.0 * len(coincidentes) - 7.0 * len(no_gustan),
+                aceptados=coincidentes,
+                rechazados=no_gustan,
+                desconocidos=desconocidos,
+            )
+        )
+    if not resultados:
+        return None
+    return max(
+        resultados,
+        key=lambda resultado: (
+            resultado.puntaje,
+            len(resultado.aceptados),
+            -len(resultado.rechazados),
+        ),
+    )

@@ -17,17 +17,27 @@ from clasificador_google import (
 )
 from conversaciones import ConversacionActiva, RepositorioConversaciones
 from motor_conocimientos import (
+    PerfilAlimentario,
+    PerfilReceta,
     ReglaConocimiento,
     ResultadoBusqueda,
     buscar_mejor_regla,
+    extraer_perfil_alimentario,
+    filtrar_recetas_por_edad,
+    nombres_ingredientes,
     normalizar_texto,
+    obtener_grupos_alimentos,
+    obtener_perfiles_recetas,
+    rankear_recetas,
 )
 
 
 ESTADO_ESPERANDO_MESES = "esperando_meses"
 ESTADO_ESPERANDO_ALIMENTOS = "esperando_alimentos"
 ESTADO_ESPERANDO_EDAD_RECETA = "esperando_edad_receta"
-ESTADO_LISTA = "lista"
+ESTADO_MENU_GENERAL = "menu_general"
+ESTADO_MENU_ESPECIFICO = "menu_especifico"
+ESTADO_LISTA = ESTADO_MENU_GENERAL  # Alias conservado para integraciones previas.
 ESTADO_ESPERANDO_CALIFICACION = "esperando_calificacion"
 
 
@@ -37,19 +47,31 @@ class OpcionRespuesta:
 
     id: str
     titulo: str
+    descripcion: str = ""
 
 
 OPCIONES_EDAD = (
-    OpcionRespuesta("edad_6_12", "6 a 12 meses"),
-    OpcionRespuesta("edad_12_24", "12 a 24 meses"),
-    OpcionRespuesta("edad_24_36", "24 a 36 meses"),
+    OpcionRespuesta("edad_6_8", "6 a 8 meses"),
+    OpcionRespuesta("edad_9_11", "9 a 11 meses"),
+    OpcionRespuesta("edad_12_23", "12 a 23 meses"),
 )
 RANGOS_EDAD_POR_OPCION = {
+    "edad_6_8": "6-8",
+    "edad_9_11": "9-11",
+    "edad_12_23": "12-23",
+    # IDs previos aceptados únicamente para conversaciones ya iniciadas.
     "edad_6_12": "6-12",
     "edad_12_24": "12-24",
     "edad_24_36": "24-36",
 }
 TITULOS_OPCIONES = {opcion.id: opcion.titulo for opcion in OPCIONES_EDAD}
+TITULOS_OPCIONES.update(
+    {
+        "edad_6_12": "6 a 12 meses",
+        "edad_12_24": "12 a 24 meses",
+        "edad_24_36": "24 a 36 meses",
+    }
+)
 
 MENSAJE_BIENVENIDA = (
     "👋 Hola, soy ANMI, tu Asistente Nutricional Materno infantil. 👶🥗\n\n"
@@ -62,8 +84,8 @@ MENSAJE_MESES_INVALIDOS = (
 )
 MENSAJE_ALIMENTOS = "🍽️ ¿Qué alimentos logra comer actualmente tu bebé?"
 MENSAJE_ALIMENTOS_INVALIDOS = (
-    "Cuéntame brevemente qué alimentos logra comer tu bebé "
-    "(máximo 500 caracteres)."
+    "No logré reconocer alimentos de la lista. Cuéntame cuáles come, cuáles "
+    "no le gustan y cuáles no puede consumir (máximo 500 caracteres)."
 )
 MENSAJE_LISTA = (
     "Gracias. Ahora vuelve a escribir tu consulta sobre nutrición o anemia. "
@@ -105,10 +127,27 @@ MENSAJE_RECETA_SIN_EDAD = (
     "Para recomendar una receta MINSA revisada necesito conocer la edad del "
     "bebé con precisión. Responde con un solo número de meses, entre 6 y 36."
 )
+MENSAJE_RECETA_SIN_PERFIL = (
+    "Para elegir una receta compatible necesito saber qué alimentos come, "
+    "cuáles no le gustan y cuáles no puede consumir."
+)
 MENSAJE_RECETA_SIN_COBERTURA = (
     "No tengo una receta MINSA revisada en la base de conocimientos para esa "
     "edad. No recomendaré una receta de otro rango. Consulta con un "
     "profesional de salud para recibir una indicación adecuada."
+)
+MENSAJE_RECETA_EXCLUIDA = (
+    "No encontré una receta revisada para ese rango que evite todos los "
+    "ingredientes que indicaste como alergia, intolerancia o alimento que no "
+    "puede consumir. No recomendaré una receta insegura."
+)
+MENSAJE_MENU_GENERAL = (
+    "También puedes explorar la base de conocimientos. Elige una categoría "
+    "general o escribe directamente tu pregunta."
+)
+MENSAJE_MENU_ESPECIFICO = (
+    "Elige una categoría específica para recibir la información revisada. "
+    "También puedes escribir directamente tu pregunta."
 )
 MENSAJE_EDAD_ACTUALIZADA = (
     "He actualizado la edad del bebé a {meses} meses. "
@@ -123,6 +162,14 @@ SALUDOS = {
     "buenas noches",
 }
 
+TAMANO_PAGINA_CATEGORIAS = 8
+TAMANO_PAGINA_SUBCATEGORIAS = 7
+PREFIJO_CATEGORIA = "menu_cat:"
+PREFIJO_REGLA = "menu_regla:"
+PREFIJO_PAGINA_GENERAL = "menu_general:"
+PREFIJO_PAGINA_ESPECIFICA = "menu_especifico:"
+ID_VOLVER_CATEGORIAS = "menu_volver_categorias"
+
 
 @dataclass(frozen=True)
 class RespuestaConversacion:
@@ -134,6 +181,8 @@ class RespuestaConversacion:
     puntaje: float | None = None
     evidencia: dict[str, Any] = field(default_factory=dict)
     opciones: tuple[OpcionRespuesta, ...] = ()
+    tipo_opciones: str = "botones"
+    etiqueta_lista: str = "Ver opciones"
 
 
 @dataclass(frozen=True)
@@ -190,6 +239,7 @@ def _serializar_resultado(resultado: ResultadoSeleccion) -> dict[str, Any]:
     ]
 
     return {
+        "id_regla": resultado.regla.id_regla,
         "categoria": resultado.categoria,
         "subcategoria": resultado.subcategoria,
         "puntaje": round(resultado.puntaje, 4),
@@ -283,6 +333,20 @@ class ServicioConversacion:
         self.reglas = reglas
         self.horas_retencion = horas_retencion
         self.clasificador = clasificador
+        self.perfiles_recetas = obtener_perfiles_recetas(reglas)
+        self.grupos_alimentos = obtener_grupos_alimentos(
+            self.perfiles_recetas
+        )
+        self.reglas_por_id = {
+            regla.id_regla: regla for regla in reglas if regla.id_regla
+        }
+        self.categorias = tuple(dict.fromkeys(regla.categoria for regla in reglas))
+        self.reglas_por_categoria = {
+            categoria: tuple(
+                regla for regla in reglas if regla.categoria == categoria
+            )
+            for categoria in self.categorias
+        }
 
     @property
     def modo_clasificador(self) -> str:
@@ -358,6 +422,8 @@ class ServicioConversacion:
                     tuple(),
                     duplicado=True,
                 )
+            if normalizar_texto(texto) == "fin":
+                return self._solicitar_cierre(conversacion)
             return self._iniciar_conversacion(conversacion, texto)
 
         registrado = self._registrar_usuario(
@@ -385,6 +451,9 @@ class ServicioConversacion:
             return self._procesar_edad_receta(conversacion, texto)
         if conversacion.estado == ESTADO_ESPERANDO_CALIFICACION:
             return self._procesar_calificacion(conversacion, texto)
+        texto_opcion = texto.strip()
+        if texto_opcion.startswith("menu_"):
+            return self._procesar_menu(conversacion, texto_opcion)
 
         return self._procesar_consulta(conversacion, texto)
 
@@ -409,7 +478,7 @@ class ServicioConversacion:
         texto: str,
         mensaje_externo_id: str | None,
     ) -> bool:
-        contenido = TITULOS_OPCIONES.get(texto, texto)
+        contenido = self._texto_visible_opcion(texto)
         return self.repositorio.registrar_mensaje(
             conversacion.id,
             "usuario",
@@ -455,6 +524,182 @@ class ServicioConversacion:
             finalizacion_pendiente=finalizacion_pendiente,
         )
 
+    def _respuesta_alimentos(self) -> RespuestaConversacion:
+        partes = [
+            MENSAJE_ALIMENTOS,
+            (
+                "Puedes escribir cuáles come, cuáles no le gustan y cuáles "
+                "no puede consumir. Usa como referencia:"
+            ),
+        ]
+        for grupo, alimentos in self.grupos_alimentos:
+            partes.append(f"*{grupo}:*")
+            partes.extend(f"• {alimento}" for alimento in alimentos)
+        return RespuestaConversacion("\n".join(partes))
+
+    @staticmethod
+    def _acortar_titulo(texto: str, limite: int = 24) -> str:
+        texto = texto.strip()
+        if len(texto) <= limite:
+            return texto
+        return texto[: limite - 1].rstrip() + "…"
+
+    def _respuesta_menu_general(self, pagina: int) -> RespuestaConversacion:
+        total_paginas = max(
+            1,
+            (len(self.categorias) + TAMANO_PAGINA_CATEGORIAS - 1)
+            // TAMANO_PAGINA_CATEGORIAS,
+        )
+        pagina = min(max(pagina, 0), total_paginas - 1)
+        inicio = pagina * TAMANO_PAGINA_CATEGORIAS
+        opciones = [
+            OpcionRespuesta(
+                id=f"{PREFIJO_CATEGORIA}{indice}",
+                titulo=self._acortar_titulo(self.categorias[indice]),
+                descripcion=(
+                    self.categorias[indice]
+                    if len(self.categorias[indice]) > 24
+                    else f"{len(self.reglas_por_categoria[self.categorias[indice]])} temas"
+                ),
+            )
+            for indice in range(
+                inicio,
+                min(inicio + TAMANO_PAGINA_CATEGORIAS, len(self.categorias)),
+            )
+        ]
+        if pagina > 0:
+            opciones.append(
+                OpcionRespuesta(
+                    f"{PREFIJO_PAGINA_GENERAL}{pagina - 1}",
+                    "⬅ Anterior",
+                )
+            )
+        if pagina + 1 < total_paginas:
+            opciones.append(
+                OpcionRespuesta(
+                    f"{PREFIJO_PAGINA_GENERAL}{pagina + 1}",
+                    "Siguiente ➡",
+                )
+            )
+        return RespuestaConversacion(
+            texto=(
+                f"{MENSAJE_MENU_GENERAL}\n\n"
+                f"Página {pagina + 1} de {total_paginas}."
+            ),
+            opciones=tuple(opciones),
+            tipo_opciones="lista",
+            etiqueta_lista="Ver categorías",
+        )
+
+    def _respuesta_menu_especifico(
+        self,
+        categoria: str,
+        pagina: int,
+    ) -> RespuestaConversacion:
+        reglas = self.reglas_por_categoria[categoria]
+        total_paginas = max(
+            1,
+            (len(reglas) + TAMANO_PAGINA_SUBCATEGORIAS - 1)
+            // TAMANO_PAGINA_SUBCATEGORIAS,
+        )
+        pagina = min(max(pagina, 0), total_paginas - 1)
+        indice_categoria = self.categorias.index(categoria)
+        inicio = pagina * TAMANO_PAGINA_SUBCATEGORIAS
+        opciones = [
+            OpcionRespuesta(
+                id=f"{PREFIJO_REGLA}{regla.id_regla}",
+                titulo=self._acortar_titulo(regla.subcategoria),
+                descripcion=(
+                    regla.subcategoria
+                    if len(regla.subcategoria) > 24
+                    else categoria
+                ),
+            )
+            for regla in reglas[
+                inicio : inicio + TAMANO_PAGINA_SUBCATEGORIAS
+            ]
+        ]
+        opciones.append(
+            OpcionRespuesta(ID_VOLVER_CATEGORIAS, "↩ Categorías")
+        )
+        if pagina > 0:
+            opciones.append(
+                OpcionRespuesta(
+                    (
+                        f"{PREFIJO_PAGINA_ESPECIFICA}"
+                        f"{indice_categoria}:{pagina - 1}"
+                    ),
+                    "⬅ Anterior",
+                )
+            )
+        if pagina + 1 < total_paginas:
+            opciones.append(
+                OpcionRespuesta(
+                    (
+                        f"{PREFIJO_PAGINA_ESPECIFICA}"
+                        f"{indice_categoria}:{pagina + 1}"
+                    ),
+                    "Siguiente ➡",
+                )
+            )
+        return RespuestaConversacion(
+            texto=(
+                f"{MENSAJE_MENU_ESPECIFICO}\n\n"
+                f"*{categoria}* — página {pagina + 1} de {total_paginas}."
+            ),
+            opciones=tuple(opciones),
+            tipo_opciones="lista",
+            etiqueta_lista="Ver temas",
+        )
+
+    def obtener_respuesta_interactiva(
+        self,
+        canal: str,
+        usuario_temporal: str,
+    ) -> RespuestaConversacion | None:
+        """Reconstruye las opciones vigentes para adaptadores con recarga."""
+
+        conversacion = self.repositorio.obtener_conversacion(
+            canal,
+            usuario_temporal,
+        )
+        if conversacion is None:
+            return None
+        if conversacion.estado == ESTADO_ESPERANDO_MESES:
+            return _respuesta_bienvenida()
+        if conversacion.estado == ESTADO_MENU_GENERAL:
+            return self._respuesta_menu_general(conversacion.pagina_menu)
+        if (
+            conversacion.estado == ESTADO_MENU_ESPECIFICO
+            and conversacion.categoria_menu in self.reglas_por_categoria
+        ):
+            assert conversacion.categoria_menu is not None
+            return self._respuesta_menu_especifico(
+                conversacion.categoria_menu,
+                conversacion.pagina_menu,
+            )
+        return None
+
+    def _texto_visible_opcion(self, texto: str) -> str:
+        if texto in TITULOS_OPCIONES:
+            return TITULOS_OPCIONES[texto]
+        if texto == ID_VOLVER_CATEGORIAS:
+            return "Volver a categorías"
+        if texto.startswith(PREFIJO_CATEGORIA):
+            try:
+                indice = int(texto.removeprefix(PREFIJO_CATEGORIA))
+                return self.categorias[indice]
+            except (ValueError, IndexError):
+                return texto
+        if texto.startswith(PREFIJO_REGLA):
+            regla = self.reglas_por_id.get(texto.removeprefix(PREFIJO_REGLA))
+            return regla.subcategoria if regla else texto
+        if texto.startswith(PREFIJO_PAGINA_GENERAL) or texto.startswith(
+            PREFIJO_PAGINA_ESPECIFICA
+        ):
+            return "Cambiar página del menú"
+        return texto
+
     def _iniciar_conversacion(
         self,
         conversacion: ConversacionActiva,
@@ -481,17 +726,6 @@ class ServicioConversacion:
         self,
         conversacion: ConversacionActiva,
     ) -> ResultadoConversacion:
-        if conversacion.estado == ESTADO_ESPERANDO_MESES:
-            respuesta = RespuestaConversacion(
-                "Antes de terminar necesito registrar los meses del bebé. "
-                + MENSAJE_MESES_INVALIDOS
-            )
-            return self._resultado(
-                conversacion.id,
-                conversacion.estado,
-                (respuesta,),
-            )
-
         self.repositorio.actualizar_conversacion(
             conversacion.id,
             estado=ESTADO_ESPERANDO_CALIFICACION,
@@ -525,7 +759,7 @@ class ServicioConversacion:
             return self._resultado(
                 conversacion.id,
                 ESTADO_ESPERANDO_ALIMENTOS,
-                (RespuestaConversacion(MENSAJE_ALIMENTOS),),
+                (self._respuesta_alimentos(),),
             )
 
         valido, meses = _extraer_meses(texto)
@@ -537,16 +771,21 @@ class ServicioConversacion:
             )
 
         if meses is None:
-            self.repositorio.actualizar_conversacion(
+            conversacion = self.repositorio.actualizar_conversacion(
                 conversacion.id,
-                estado=ESTADO_LISTA,
+                estado=ESTADO_MENU_GENERAL,
                 meses_bebe=None,
                 rango_edad_bebe=None,
+                categoria_menu=None,
+                pagina_menu=0,
             )
             return self._resultado(
                 conversacion.id,
-                ESTADO_LISTA,
-                (RespuestaConversacion(MENSAJE_LISTA_SIN_BEBE),),
+                ESTADO_MENU_GENERAL,
+                (
+                    RespuestaConversacion(MENSAJE_LISTA_SIN_BEBE),
+                    self._respuesta_menu_general(0),
+                ),
             )
 
         self.repositorio.actualizar_conversacion(
@@ -558,7 +797,7 @@ class ServicioConversacion:
         return self._resultado(
             conversacion.id,
             ESTADO_ESPERANDO_ALIMENTOS,
-            (RespuestaConversacion(MENSAJE_ALIMENTOS),),
+            (self._respuesta_alimentos(),),
         )
 
     def _procesar_alimentos(
@@ -566,15 +805,6 @@ class ServicioConversacion:
         conversacion: ConversacionActiva,
         texto: str,
     ) -> ResultadoConversacion:
-        if self._es_solicitud_receta(texto):
-            conversacion = self.repositorio.actualizar_conversacion(
-                conversacion.id,
-                estado=ESTADO_LISTA,
-            )
-            receta = self._procesar_solicitud_receta(conversacion, texto)
-            assert receta is not None
-            return receta
-
         alimentos = texto.strip()
         if not alimentos or len(alimentos) > 500:
             return self._resultado(
@@ -583,15 +813,48 @@ class ServicioConversacion:
                 (RespuestaConversacion(MENSAJE_ALIMENTOS_INVALIDOS),),
             )
 
-        self.repositorio.actualizar_conversacion(
+        perfil = extraer_perfil_alimentario(alimentos)
+        if not perfil.reconocido:
+            return self._resultado(
+                conversacion.id,
+                conversacion.estado,
+                (
+                    RespuestaConversacion(MENSAJE_ALIMENTOS_INVALIDOS),
+                    self._respuesta_alimentos(),
+                ),
+            )
+
+        if conversacion.rango_edad_bebe in {"6-12", "12-24", "24-36"}:
+            self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_ESPERANDO_EDAD_RECETA,
+                alimentos_contexto=alimentos,
+            )
+            return self._resultado(
+                conversacion.id,
+                ESTADO_ESPERANDO_EDAD_RECETA,
+                (RespuestaConversacion(MENSAJE_RECETA_SIN_EDAD),),
+            )
+
+        conversacion = self.repositorio.actualizar_conversacion(
             conversacion.id,
-            estado=ESTADO_LISTA,
+            estado=ESTADO_MENU_GENERAL,
             alimentos_contexto=alimentos,
+            categoria_menu=None,
+            pagina_menu=0,
         )
+        respuestas = list(
+            self._respuestas_receta_personalizada(
+                conversacion,
+                alimentos,
+                perfil,
+            )
+        )
+        respuestas.append(self._respuesta_menu_general(0))
         return self._resultado(
             conversacion.id,
-            ESTADO_LISTA,
-            (RespuestaConversacion(MENSAJE_LISTA),),
+            ESTADO_MENU_GENERAL,
+            tuple(respuestas),
         )
 
     def _procesar_edad_receta(
@@ -609,16 +872,37 @@ class ServicioConversacion:
 
         conversacion = self.repositorio.actualizar_conversacion(
             conversacion.id,
-            estado=ESTADO_LISTA,
+            estado=(
+                ESTADO_MENU_GENERAL
+                if conversacion.alimentos_contexto
+                else ESTADO_ESPERANDO_ALIMENTOS
+            ),
             meses_bebe=meses,
             rango_edad_bebe=None,
         )
-        receta = self._procesar_solicitud_receta(
-            conversacion,
-            f"recomiéndame una receta para {meses} meses",
+        if conversacion.alimentos_contexto:
+            perfil = extraer_perfil_alimentario(
+                conversacion.alimentos_contexto
+            )
+            if perfil.reconocido:
+                respuestas = list(
+                    self._respuestas_receta_personalizada(
+                        conversacion,
+                        conversacion.alimentos_contexto,
+                        perfil,
+                    )
+                )
+                respuestas.append(self._respuesta_menu_general(0))
+                return self._resultado(
+                    conversacion.id,
+                    ESTADO_MENU_GENERAL,
+                    tuple(respuestas),
+                )
+        return self._resultado(
+            conversacion.id,
+            ESTADO_ESPERANDO_ALIMENTOS,
+            (self._respuesta_alimentos(),),
         )
-        assert receta is not None
-        return receta
 
     def _procesar_calificacion(
         self,
@@ -644,15 +928,160 @@ class ServicioConversacion:
             finalizacion_pendiente=True,
         )
 
+    def _procesar_menu(
+        self,
+        conversacion: ConversacionActiva,
+        texto: str,
+    ) -> ResultadoConversacion:
+        if texto == ID_VOLVER_CATEGORIAS:
+            conversacion = self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_MENU_GENERAL,
+                categoria_menu=None,
+                pagina_menu=0,
+            )
+            return self._resultado(
+                conversacion.id,
+                ESTADO_MENU_GENERAL,
+                (self._respuesta_menu_general(0),),
+            )
+
+        if texto.startswith(PREFIJO_PAGINA_GENERAL):
+            try:
+                pagina = int(texto.removeprefix(PREFIJO_PAGINA_GENERAL))
+            except ValueError:
+                return self._respuesta_opcion_invalida(conversacion)
+            ultima_pagina = max(
+                0,
+                (len(self.categorias) - 1) // TAMANO_PAGINA_CATEGORIAS,
+            )
+            if pagina < 0 or pagina > ultima_pagina:
+                return self._respuesta_opcion_invalida(conversacion)
+            conversacion = self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_MENU_GENERAL,
+                categoria_menu=None,
+                pagina_menu=pagina,
+            )
+            respuesta = self._respuesta_menu_general(pagina)
+            return self._resultado(
+                conversacion.id,
+                ESTADO_MENU_GENERAL,
+                (respuesta,),
+            )
+
+        if texto.startswith(PREFIJO_CATEGORIA):
+            try:
+                indice = int(texto.removeprefix(PREFIJO_CATEGORIA))
+            except ValueError:
+                return self._respuesta_opcion_invalida(conversacion)
+            if not 0 <= indice < len(self.categorias):
+                return self._respuesta_opcion_invalida(conversacion)
+            categoria = self.categorias[indice]
+            conversacion = self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_MENU_ESPECIFICO,
+                categoria_menu=categoria,
+                pagina_menu=0,
+            )
+            return self._resultado(
+                conversacion.id,
+                ESTADO_MENU_ESPECIFICO,
+                (self._respuesta_menu_especifico(categoria, 0),),
+            )
+
+        if texto.startswith(PREFIJO_PAGINA_ESPECIFICA):
+            valores = texto.removeprefix(PREFIJO_PAGINA_ESPECIFICA).split(":")
+            try:
+                indice, pagina = (int(valor) for valor in valores)
+            except (ValueError, TypeError):
+                return self._respuesta_opcion_invalida(conversacion)
+            if (
+                len(valores) != 2
+                or not 0 <= indice < len(self.categorias)
+                or pagina < 0
+            ):
+                return self._respuesta_opcion_invalida(conversacion)
+            categoria = self.categorias[indice]
+            ultima_pagina = max(
+                0,
+                (len(self.reglas_por_categoria[categoria]) - 1)
+                // TAMANO_PAGINA_SUBCATEGORIAS,
+            )
+            if pagina > ultima_pagina:
+                return self._respuesta_opcion_invalida(conversacion)
+            conversacion = self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_MENU_ESPECIFICO,
+                categoria_menu=categoria,
+                pagina_menu=pagina,
+            )
+            return self._resultado(
+                conversacion.id,
+                ESTADO_MENU_ESPECIFICO,
+                (self._respuesta_menu_especifico(categoria, pagina),),
+            )
+
+        if texto.startswith(PREFIJO_REGLA):
+            id_regla = texto.removeprefix(PREFIJO_REGLA)
+            regla = self.reglas_por_id.get(id_regla)
+            if (
+                regla is None
+                or conversacion.estado != ESTADO_MENU_ESPECIFICO
+                or regla.categoria != conversacion.categoria_menu
+            ):
+                return self._respuesta_opcion_invalida(conversacion)
+            conversacion = self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_MENU_GENERAL,
+                categoria_menu=None,
+                pagina_menu=0,
+            )
+            resultado = _resultado_forzado(
+                regla,
+                "seleccion_menu",
+                (regla.id_regla,),
+            )
+            respuestas = list(self._respuestas_desde_regla(resultado))
+            respuestas.append(self._respuesta_menu_general(0))
+            return self._resultado(
+                conversacion.id,
+                ESTADO_MENU_GENERAL,
+                tuple(respuestas),
+            )
+
+        return self._respuesta_opcion_invalida(conversacion)
+
+    def _respuesta_opcion_invalida(
+        self,
+        conversacion: ConversacionActiva,
+    ) -> ResultadoConversacion:
+        respuesta_actual = self.obtener_respuesta_interactiva(
+            conversacion.canal,
+            conversacion.usuario_temporal,
+        )
+        respuestas = [
+            RespuestaConversacion(
+                "La opción del menú no es válida o ya venció. Elige una "
+                "opción vigente o escribe tu pregunta."
+            )
+        ]
+        if respuesta_actual is not None:
+            respuestas.append(respuesta_actual)
+        return self._resultado(
+            conversacion.id,
+            conversacion.estado,
+            tuple(respuestas),
+        )
+
     def _procesar_consulta(
         self,
         conversacion: ConversacionActiva,
         texto: str,
     ) -> ResultadoConversacion:
         if normalizar_texto(texto) in SALUDOS:
-            return self._resultado(
-                conversacion.id,
-                conversacion.estado,
+            return self._resultado_con_menu(
+                conversacion,
                 (RespuestaConversacion(MENSAJE_SALUDO_ACTIVO),),
             )
 
@@ -663,9 +1092,8 @@ class ServicioConversacion:
                 meses_bebe=meses,
                 rango_edad_bebe=None,
             )
-            return self._resultado(
-                conversacion.id,
-                conversacion.estado,
+            return self._resultado_con_menu(
+                conversacion,
                 (
                     RespuestaConversacion(
                         MENSAJE_EDAD_ACTUALIZADA.format(meses=meses)
@@ -678,15 +1106,56 @@ class ServicioConversacion:
             texto,
         )
 
-        receta = self._procesar_solicitud_receta(conversacion, texto)
-        if receta is not None:
-            return receta
+        if self._es_solicitud_receta(texto):
+            meses_receta = self._extraer_meses_consulta(
+                normalizar_texto(texto)
+            )
+            if meses_receta is not None and 6 <= meses_receta <= 36:
+                conversacion = self.repositorio.actualizar_perfil(
+                    conversacion.id,
+                    meses_bebe=meses_receta,
+                    rango_edad_bebe=None,
+                )
+            if (
+                conversacion.meses_bebe is None
+                and conversacion.rango_edad_bebe
+                not in {"6-8", "9-11", "12-23"}
+            ):
+                return self._resultado_con_menu(
+                    conversacion,
+                    (RespuestaConversacion(MENSAJE_RECETA_SIN_EDAD),),
+                )
+            perfil = extraer_perfil_alimentario(
+                conversacion.alimentos_contexto or ""
+            )
+            if perfil.reconocido:
+                return self._resultado_con_menu(
+                    conversacion,
+                    self._respuestas_receta_personalizada(
+                        conversacion,
+                        conversacion.alimentos_contexto or texto,
+                        perfil,
+                    ),
+                )
+            conversacion = self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_ESPERANDO_ALIMENTOS,
+                categoria_menu=None,
+                pagina_menu=0,
+            )
+            return self._resultado(
+                conversacion.id,
+                ESTADO_ESPERANDO_ALIMENTOS,
+                (
+                    RespuestaConversacion(MENSAJE_RECETA_SIN_PERFIL),
+                    self._respuesta_alimentos(),
+                ),
+            )
 
         resultado_hemoglobina = self._seleccionar_hemoglobina_general(texto)
         if resultado_hemoglobina is not None:
-            return self._resultado(
-                conversacion.id,
-                conversacion.estado,
+            return self._resultado_con_menu(
+                conversacion,
                 self._respuestas_desde_regla(resultado_hemoglobina),
             )
 
@@ -696,16 +1165,31 @@ class ServicioConversacion:
             usar_contexto=True,
         )
         if resultado is None:
-            return self._resultado(
-                conversacion.id,
-                conversacion.estado,
+            return self._resultado_con_menu(
+                conversacion,
                 (RespuestaConversacion(MENSAJE_NO_ENCONTRADO),),
             )
 
+        return self._resultado_con_menu(
+            conversacion,
+            self._respuestas_desde_regla(resultado),
+        )
+
+    def _resultado_con_menu(
+        self,
+        conversacion: ConversacionActiva,
+        respuestas: tuple[RespuestaConversacion, ...],
+    ) -> ResultadoConversacion:
+        conversacion = self.repositorio.actualizar_conversacion(
+            conversacion.id,
+            estado=ESTADO_MENU_GENERAL,
+            categoria_menu=None,
+            pagina_menu=0,
+        )
         return self._resultado(
             conversacion.id,
-            conversacion.estado,
-            self._respuestas_desde_regla(resultado),
+            ESTADO_MENU_GENERAL,
+            respuestas + (self._respuesta_menu_general(0),),
         )
 
     def _seleccionar_regla(
@@ -751,6 +1235,9 @@ class ServicioConversacion:
         self,
         conversacion: ConversacionActiva,
         categoria_anterior: str | None,
+        *,
+        perfil_alimentario: PerfilAlimentario | None = None,
+        recetas_permitidas: tuple[PerfilReceta, ...] = (),
     ) -> ContextoClasificacion:
         mensajes = self.repositorio.listar_mensajes(conversacion.id)
         consultas_clasificadas: list[str] = []
@@ -775,6 +1262,24 @@ class ServicioConversacion:
             categoria_anterior=categoria_anterior,
             subcategoria_anterior=subcategoria_anterior,
             consultas_anteriores=tuple(consultas_clasificadas[-2:]),
+            alimentos_aceptados=(
+                perfil_alimentario.aceptados if perfil_alimentario else ()
+            ),
+            alimentos_rechazados=(
+                perfil_alimentario.rechazados if perfil_alimentario else ()
+            ),
+            alimentos_excluidos=(
+                perfil_alimentario.excluidos if perfil_alimentario else ()
+            ),
+            ids_permitidos=tuple(
+                perfil.regla.id_regla for perfil in recetas_permitidas
+            ),
+            ingredientes_por_id={
+                perfil.regla.id_regla: nombres_ingredientes(
+                    perfil.ingredientes
+                )
+                for perfil in recetas_permitidas
+            },
         )
 
     def _seleccionar_hemoglobina_general(
@@ -820,83 +1325,128 @@ class ServicioConversacion:
             ("hemoglobina",),
         )
 
-    def _procesar_solicitud_receta(
+    def _respuestas_receta_personalizada(
         self,
         conversacion: ConversacionActiva,
-        texto: str,
-    ) -> ResultadoConversacion | None:
-        if not self._es_solicitud_receta(texto):
-            return None
-
-        normalizado = normalizar_texto(texto)
-        meses_explicitos = self._extraer_meses_consulta(normalizado)
-        if meses_explicitos is not None and 6 <= meses_explicitos <= 36:
-            conversacion = self.repositorio.actualizar_perfil(
-                conversacion.id,
-                meses_bebe=meses_explicitos,
-                rango_edad_bebe=None,
-            )
-        meses_referencia = (
-            meses_explicitos
-            if meses_explicitos is not None
-            else conversacion.meses_bebe
+        texto_alimentos: str,
+        perfil_alimentario: PerfilAlimentario,
+    ) -> tuple[RespuestaConversacion, ...]:
+        recetas_edad = filtrar_recetas_por_edad(
+            self.perfiles_recetas,
+            meses_bebe=conversacion.meses_bebe,
+            rango_edad_bebe=conversacion.rango_edad_bebe,
         )
-        rango = self._rango_para_meses(meses_referencia)
-        if (
-            meses_referencia is None
-            and conversacion.rango_edad_bebe not in {"6-8", "9-11", "12-23"}
-        ):
-            self.repositorio.actualizar_conversacion(
-                conversacion.id,
-                estado=ESTADO_ESPERANDO_EDAD_RECETA,
+        if not recetas_edad:
+            return (RespuestaConversacion(MENSAJE_RECETA_SIN_COBERTURA),)
+
+        excluidos = set(perfil_alimentario.excluidos)
+        recetas_permitidas = tuple(
+            perfil
+            for perfil in recetas_edad
+            if not (set(perfil.ingredientes) & excluidos)
+        )
+        if not recetas_permitidas:
+            return (RespuestaConversacion(MENSAJE_RECETA_EXCLUIDA),)
+
+        perfiles_por_id = {
+            perfil.regla.id_regla: perfil for perfil in recetas_permitidas
+        }
+        seleccion: SeleccionGoogle | None = None
+        origen = "reglas"
+        if self.clasificador is not None:
+            contexto = self._crear_contexto_clasificacion(
+                conversacion,
+                self.repositorio.ultima_categoria(conversacion.id),
+                perfil_alimentario=perfil_alimentario,
+                recetas_permitidas=recetas_permitidas,
             )
-            respuesta = RespuestaConversacion(MENSAJE_RECETA_SIN_EDAD)
-            return self._resultado(
-                conversacion.id,
-                ESTADO_ESPERANDO_EDAD_RECETA,
-                (respuesta,),
+            try:
+                candidata = self.clasificador.seleccionar(
+                    texto_alimentos,
+                    contexto,
+                )
+            except ErrorClasificacionGoogle as error:
+                logging.warning(
+                    "Gemini no pudo elegir receta; se usarán reglas: %s",
+                    error,
+                )
+            else:
+                if (
+                    candidata is not None
+                    and candidata.regla.id_regla in perfiles_por_id
+                ):
+                    seleccion = candidata
+                    origen = "google"
+                elif candidata is not None:
+                    logging.warning(
+                        "Gemini devolvió una receta fuera del conjunto permitido"
+                    )
+
+        if seleccion is not None:
+            perfil_elegido = perfiles_por_id[seleccion.regla.id_regla]
+            evaluacion = rankear_recetas(
+                (perfil_elegido,),
+                perfil_alimentario,
             )
-        if rango is None and conversacion.rango_edad_bebe in {
-            "6-8",
-            "9-11",
-            "12-23",
-        }:
-            rango = conversacion.rango_edad_bebe
-        if rango is None:
-            respuesta = RespuestaConversacion(MENSAJE_RECETA_SIN_COBERTURA)
-            return self._resultado(
-                conversacion.id,
-                conversacion.estado,
-                (respuesta,),
+            resultado: ResultadoSeleccion = seleccion
+        else:
+            evaluacion = rankear_recetas(
+                recetas_permitidas,
+                perfil_alimentario,
+            )
+            if evaluacion is None:  # Protegido por recetas_permitidas.
+                return (RespuestaConversacion(MENSAJE_RECETA_EXCLUIDA),)
+            perfil_elegido = evaluacion.perfil_receta
+            resultado = ResultadoBusqueda(
+                regla=perfil_elegido.regla,
+                puntaje=evaluacion.puntaje,
+                margen=1.0,
+                coincidencias_exactas=evaluacion.aceptados,
+                coincidencias_aproximadas=(),
+                motivo="seleccion_receta_por_preferencias",
             )
 
-        categoria_objetivo = f"recetas minsa {rango.replace('-', ' ')}m"
-        regla = next(
-            (
-                candidata
-                for candidata in self.reglas
-                if normalizar_texto(candidata.categoria)
-                == categoria_objetivo
+        assert evaluacion is not None
+        adicionales = {
+            "origen_receta": origen,
+            "id_receta": perfil_elegido.regla.id_regla,
+            "alimentos_aceptados": list(
+                nombres_ingredientes(perfil_alimentario.aceptados)
             ),
-            None,
-        )
-        if regla is None:
-            respuesta = RespuestaConversacion(MENSAJE_RECETA_SIN_COBERTURA)
-            return self._resultado(
-                conversacion.id,
-                conversacion.estado,
-                (respuesta,),
+            "alimentos_rechazados": list(
+                nombres_ingredientes(perfil_alimentario.rechazados)
+            ),
+            "alimentos_excluidos": list(
+                nombres_ingredientes(perfil_alimentario.excluidos)
+            ),
+            "ingredientes_coincidentes": list(
+                nombres_ingredientes(evaluacion.aceptados)
+            ),
+            "ingredientes_rechazados_receta": list(
+                nombres_ingredientes(evaluacion.rechazados)
+            ),
+            "puntaje_compatibilidad": evaluacion.puntaje,
+        }
+        respuestas: list[RespuestaConversacion] = []
+        if evaluacion.rechazados:
+            rechazados = ", ".join(
+                nombres_ingredientes(evaluacion.rechazados)
             )
-        resultado = _resultado_forzado(
-            regla,
-            "seleccion_forzada_receta_minsa_por_edad",
-            ("receta", rango),
+            respuestas.append(
+                RespuestaConversacion(
+                    "La mejor coincidencia disponible incluye "
+                    f"{rechazados}, que indicaste que no le gusta. Te "
+                    "mostraré la receta revisada sin cambiar sus ingredientes; "
+                    "no la uses si además existe alergia o intolerancia."
+                )
+            )
+        respuestas.extend(
+            self._respuestas_desde_regla(
+                resultado,
+                evidencia_adicional=adicionales,
+            )
         )
-        return self._resultado(
-            conversacion.id,
-            conversacion.estado,
-            self._respuestas_desde_regla(resultado),
-        )
+        return tuple(respuestas)
 
     @staticmethod
     def _es_solicitud_receta(texto: str) -> bool:
@@ -964,18 +1514,10 @@ class ServicioConversacion:
         return int(coincidencia.group(1)) * 12 if coincidencia else None
 
     @staticmethod
-    def _rango_para_meses(meses: int | None) -> str | None:
-        if meses is None:
-            return None
-        for rango in ("6-8", "9-11", "12-23"):
-            minimo, maximo = (int(valor) for valor in rango.split("-"))
-            if minimo <= meses <= maximo:
-                return rango
-        return None
-
-    @staticmethod
     def _respuestas_desde_regla(
         resultado: ResultadoSeleccion,
+        *,
+        evidencia_adicional: dict[str, Any] | None = None,
     ) -> tuple[RespuestaConversacion, ...]:
         regla = resultado.regla
         enlace = regla.enlace.strip() or "No disponible"
@@ -984,13 +1526,16 @@ class ServicioConversacion:
             if isinstance(resultado, ResultadoBusqueda)
             else None
         )
+        evidencia = _serializar_resultado(resultado)
+        if evidencia_adicional:
+            evidencia.update(evidencia_adicional)
         return (
             RespuestaConversacion(
                 texto=f"{regla.respuesta.strip()}",
                 categoria=regla.categoria,
                 subcategoria=regla.subcategoria,
                 puntaje=puntaje,
-                evidencia=_serializar_resultado(resultado),
+                evidencia=evidencia,
             ),
             RespuestaConversacion(
                 texto=f"{regla.disclaimer.strip()}"

@@ -51,19 +51,24 @@ La interfaz queda disponible en `http://127.0.0.1:5002`. Para usar el valor
 python simulador.py --usar-puerto-prueba false
 ```
 
-El flujo solicita la edad mediante botones para 6–12, 12–24 y 24–36 meses, tanto
-en WhatsApp como en el simulador. También acepta una edad exacta escrita entre
-6 y 36 meses o `no aplica`. Si el usuario precisa después la edad exacta, esta
-reemplaza al rango elegido y se conserva como contexto. Luego solicita alimentos
-cuando corresponde y
-atiende las consultas en bloques separados de respuesta, disclaimer, documento,
-página, enlace y recordatorio de cierre. Al escribir `fin`, solicita una
-calificación del 1 al 5 y responde con un agradecimiento antes de cerrar la
-conversación.
+El flujo solicita la edad mediante botones para 6–8, 9–11 y 12–23 meses, que
+coinciden con las recetas revisadas del CSV. También acepta una edad exacta
+escrita entre 6 y 36 meses o `no aplica`. Después muestra, mediante bullet
+points, alimentos blandos o bases, alimentos ricos en hierro y otros
+ingredientes presentes en las recetas. La persona cuidadora puede indicar qué
+come el bebé, qué rechaza y qué no puede consumir por alergia o intolerancia.
 
-Las solicitudes de recetas se resuelven con una receta MINSA revisada según la
-edad exacta. Si solo se eligió una franja amplia, ANMI solicita los meses antes
-de recomendar; para edades sin cobertura no reutiliza contenido de otro rango.
+Gemini elige una receta únicamente entre los IDs compatibles con la edad y las
+exclusiones. Si Google falla o no devuelve una selección válida, un ranking
+local premia ingredientes aceptados y penaliza los rechazados. Las alergias e
+intolerancias siempre excluyen la receta; los ingredientes que simplemente no
+gustan se muestran en una advertencia y nunca se inventan sustituciones.
+
+Después de la recomendación se presenta una lista paginada de categorías y,
+luego, de subcategorías de toda la base. Los menús respetan el límite de diez
+filas de WhatsApp. En cualquier nivel se puede escribir una consulta libre, que
+vuelve a pasar por Gemini y por el fallback local. Al escribir `fin`, incluso
+durante un menú, se solicita una calificación del 1 al 5 antes de cerrar.
 
 ## Clasificación y caché de Gemini
 
@@ -71,6 +76,10 @@ Los dos CSV se enlazan mediante IDs estables con formato `ANMI-0001`. Gemini
 recibe únicamente el catálogo de ID, categoría y subcategoría, además del
 mensaje actual y un contexto breve de la sesión. Nunca recibe las respuestas
 médicas ni puede redactar el contenido final.
+
+Durante la elección inicial de receta, el contexto añade la lista explícita de
+IDs permitidos y los ingredientes locales asociados a esos IDs. Toda selección
+se valida otra vez en el proceso antes de recuperar el texto revisado.
 
 El catálogo estático se intenta conservar durante 24 horas en una caché
 explícita compartida. Cuando la cuenta de Google no admite esa modalidad, se

@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS conversaciones_activas (
             'esperando_alimentos',
             'esperando_edad_receta',
             'lista',
+            'menu_general',
+            'menu_especifico',
             'esperando_calificacion'
         )
     ),
@@ -32,6 +34,12 @@ CREATE TABLE IF NOT EXISTS conversaciones_activas (
         )
     ),
     alimentos_contexto TEXT,
+    categoria_menu TEXT
+        CHECK (
+            categoria_menu IS NULL
+            OR length(trim(categoria_menu)) > 0
+        ),
+    pagina_menu INTEGER NOT NULL DEFAULT 0 CHECK (pagina_menu >= 0),
     calificacion_pendiente INTEGER
         CHECK (
             calificacion_pendiente IS NULL

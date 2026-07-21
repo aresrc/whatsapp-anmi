@@ -581,5 +581,71 @@ class ResultadoEstructuradoTests(unittest.TestCase):
         self.assertEqual(motor.construir_respuesta(resultado), esperado)
 
 
+class RecetasYPreferenciasTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.reglas = motor.cargar_motor_conocimientos()
+        cls.perfiles = motor.obtener_perfiles_recetas(cls.reglas)
+
+    def test_ids_e_inventario_provienen_de_recetas_revisadas(self) -> None:
+        self.assertEqual(self.reglas[0].id_regla, "ANMI-0001")
+        self.assertEqual(len({regla.id_regla for regla in self.reglas}), 412)
+        self.assertEqual(len(self.perfiles), 14)
+        self.assertEqual(
+            [grupo for grupo, _ in motor.obtener_grupos_alimentos(self.perfiles)],
+            [motor.GRUPO_BLANDOS, motor.GRUPO_HIERRO, motor.GRUPO_OTROS],
+        )
+        inventario = {
+            alimento
+            for _, alimentos in motor.obtener_grupos_alimentos(self.perfiles)
+            for alimento in alimentos
+        }
+        self.assertTrue({"papa", "hígado", "huevo"} <= inventario)
+
+    def test_extrae_gustos_rechazos_exclusiones_y_frases_generales(self) -> None:
+        perfil = motor.extraer_perfil_alimentario(
+            "Come papa, arroz y huevo; no le gusta el hígado ni la "
+            "sangrecita; es alérgico al pescado."
+        )
+        self.assertEqual(set(perfil.aceptados), {"papa", "arroz", "huevo"})
+        self.assertEqual(set(perfil.rechazados), {"higado", "sangrecita"})
+        self.assertEqual(perfil.excluidos, ("pescado",))
+        self.assertTrue(
+            motor.extraer_perfil_alimentario("come de todo").aceptados
+        )
+        self.assertFalse(
+            motor.extraer_perfil_alimentario("solo toma agua").reconocido
+        )
+
+    def test_ranking_respeta_edad_y_elimina_alergias(self) -> None:
+        recetas = motor.filtrar_recetas_por_edad(
+            self.perfiles,
+            rango_edad_bebe="12-23",
+        )
+        resultado = motor.rankear_recetas(
+            recetas,
+            motor.extraer_perfil_alimentario(
+                "come huevo, bazo, harina y espinaca"
+            ),
+        )
+        self.assertIsNotNone(resultado)
+        assert resultado is not None
+        self.assertEqual(resultado.regla.id_regla, "ANMI-0168")
+
+        sin_huevo = motor.rankear_recetas(
+            recetas,
+            motor.extraer_perfil_alimentario(
+                "es alérgico al huevo; come sangrecita y trigo"
+            ),
+        )
+        self.assertIsNotNone(sin_huevo)
+        assert sin_huevo is not None
+        self.assertNotIn("huevo", sin_huevo.perfil_receta.ingredientes)
+        self.assertEqual(
+            motor.filtrar_recetas_por_edad(self.perfiles, meses_bebe=30),
+            (),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

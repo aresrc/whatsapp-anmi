@@ -157,9 +157,47 @@ def enviar_respuesta(
     numero_destino: str,
     respuesta: RespuestaConversacion,
 ) -> bool:
-    """Envía texto simple o botones de respuesta según la salida del servicio."""
+    """Envía texto, botones o una lista según la salida del servicio."""
     if not respuesta.opciones:
         return enviar_mensaje_texto(numero_destino, respuesta.texto)
+    if respuesta.tipo_opciones == "lista":
+        return enviar_mensaje(
+            numero_destino,
+            {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": numero_destino,
+                "type": "interactive",
+                "interactive": {
+                    "type": "list",
+                    "body": {"text": respuesta.texto},
+                    "action": {
+                        "button": respuesta.etiqueta_lista[:20],
+                        "sections": [
+                            {
+                                "title": "Opciones",
+                                "rows": [
+                                    {
+                                        "id": opcion.id[:200],
+                                        "title": opcion.titulo[:24],
+                                        **(
+                                            {
+                                                "description": (
+                                                    opcion.descripcion[:72]
+                                                )
+                                            }
+                                            if opcion.descripcion
+                                            else {}
+                                        ),
+                                    }
+                                    for opcion in respuesta.opciones[:10]
+                                ],
+                            }
+                        ],
+                    },
+                },
+            },
+        )
     return enviar_mensaje(
         numero_destino,
         {
@@ -225,16 +263,21 @@ def extraer_mensajes_texto(payload: dict[str, Any]) -> list[dict[str, str]]:
                     )
                 elif tipo == "interactive":
                     bloque_interactivo = mensaje.get("interactive", {})
-                    if (
-                        isinstance(bloque_interactivo, dict)
-                        and bloque_interactivo.get("type") == "button_reply"
-                    ):
-                        boton = bloque_interactivo.get("button_reply", {})
-                        texto = (
-                            boton.get("id")
-                            if isinstance(boton, dict)
-                            else None
-                        )
+                    if isinstance(bloque_interactivo, dict):
+                        tipo_interactivo = bloque_interactivo.get("type")
+                        if tipo_interactivo in {
+                            "button_reply",
+                            "list_reply",
+                        }:
+                            seleccion = bloque_interactivo.get(
+                                tipo_interactivo,
+                                {},
+                            )
+                            texto = (
+                                seleccion.get("id")
+                                if isinstance(seleccion, dict)
+                                else None
+                            )
                 if all(
                     isinstance(valor, str) and valor.strip()
                     for valor in (numero, mensaje_id, texto)
