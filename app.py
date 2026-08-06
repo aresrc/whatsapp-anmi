@@ -38,6 +38,7 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "")
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID", "")
 GRAPH_API_VERSION = os.getenv("GRAPH_API_VERSION", "")
+ANMI_USER_HASH_SECRET = os.getenv("ANMI_USER_HASH_SECRET", "")
 
 REGLAS_CONOCIMIENTO = cargar_motor_conocimientos()
 
@@ -71,11 +72,16 @@ def validar_configuracion() -> None:
         "WHATSAPP_TOKEN": WHATSAPP_TOKEN,
         "PHONE_NUMBER_ID": PHONE_NUMBER_ID,
         "GRAPH_API_VERSION": GRAPH_API_VERSION,
+        "ANMI_USER_HASH_SECRET": ANMI_USER_HASH_SECRET,
     }
     faltantes = [nombre for nombre, valor in variables.items() if not valor]
     if faltantes:
         raise RuntimeError(
             f"Faltan variables de entorno: {', '.join(faltantes)}"
+        )
+    if len(ANMI_USER_HASH_SECRET) < 32:
+        raise RuntimeError(
+            "ANMI_USER_HASH_SECRET debe tener al menos 32 caracteres"
         )
 
 
@@ -297,6 +303,7 @@ def crear_app(
     *,
     iniciar_limpieza: bool = False,
     usar_google: bool = True,
+    secreto_identidad: str | None = None,
 ) -> Flask:
     """Construye la aplicación y permite aislar la base en las pruebas."""
     aplicacion = Flask(__name__)
@@ -310,6 +317,11 @@ def crear_app(
             crear_clasificador_google(REGLAS_CONOCIMIENTO)
             if usar_google
             else None
+        ),
+        secreto_identidad=(
+            ANMI_USER_HASH_SECRET
+            if secreto_identidad is None
+            else secreto_identidad
         ),
     )
     servicio.inicializar()

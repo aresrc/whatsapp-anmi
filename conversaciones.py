@@ -42,8 +42,11 @@ ESTADOS_CONVERSACION = frozenset(
         "menu_general",
         "menu_especifico",
         "esperando_calificacion",
+        "esperando_decision_comentario",
+        "esperando_comentario",
     }
 )
+LONGITUD_MAXIMA_COMENTARIO = 1000
 
 _SIN_CAMBIO = object()
 
@@ -74,6 +77,7 @@ class ConversacionActiva:
     categoria_menu: str | None
     pagina_menu: int
     calificacion_pendiente: int | None
+    comentario_pendiente: str | None
 
 
 @dataclass(frozen=True)
@@ -97,6 +101,7 @@ class ConsultaFinalizada:
     meses_bebe: int | None
     rango_edad_bebe: str | None
     calificacion: int
+    comentario: str | None
     categorias: tuple[str, ...]
 
 
@@ -192,6 +197,22 @@ def _validar_calificacion(calificacion: int | None) -> None:
         raise ValueError("La calificación debe ser un entero entre 1 y 5")
 
 
+def _validar_comentario(comentario: str | None) -> str | None:
+    if comentario is None:
+        return None
+    if not isinstance(comentario, str):
+        raise ValueError("El comentario debe ser texto o None")
+    comentario_limpio = comentario.strip()
+    if not comentario_limpio:
+        raise ValueError("El comentario no puede estar vacío")
+    if len(comentario_limpio) > LONGITUD_MAXIMA_COMENTARIO:
+        raise ValueError(
+            "El comentario no puede superar "
+            f"{LONGITUD_MAXIMA_COMENTARIO} caracteres"
+        )
+    return comentario_limpio
+
+
 def _validar_estado(estado: str) -> str:
     estado = _validar_texto_no_vacio(estado, "estado")
     if estado not in ESTADOS_CONVERSACION:
@@ -228,19 +249,19 @@ class RepositorioConversaciones:
 
         with self._conexion() as conexion:
             conexion.executescript(esquema)
-            self._migrar_esquema_edades(conexion)
+            self._migrar_esquema(conexion)
             conexion.commit()
 
     @classmethod
-    def _migrar_esquema_edades(
+    def _migrar_esquema(
         cls,
         conexion: sqlite3.Connection,
     ) -> None:
-        """Unifica restricciones de edad y recupera perfiles legacy inválidos."""
+        """Actualiza restricciones y columnas preservando los datos existentes."""
         tablas_a_migrar = [
             tabla
             for tabla in ("conversaciones_activas", "consultas_finalizadas")
-            if cls._tabla_edades_necesita_migracion(conexion, tabla)
+            if cls._tabla_necesita_migracion(conexion, tabla)
         ]
         if not tablas_a_migrar:
             return
@@ -259,11 +280,11 @@ class RepositorioConversaciones:
         errores_fk = conexion.execute("PRAGMA foreign_key_check").fetchall()
         if errores_fk:
             raise ErrorPersistenciaConversacion(
-                "La migración de edades dejó referencias inválidas"
+                "La migración del esquema dejó referencias inválidas"
             )
 
     @classmethod
-    def _tabla_edades_necesita_migracion(
+    def _tabla_necesita_migracion(
         cls,
         conexion: sqlite3.Connection,
         tabla: str,
@@ -287,7 +308,19 @@ class RepositorioConversaciones:
                 and "'esperando_edad_receta'" in sql
                 and "'menu_general'" in sql
                 and "'menu_especifico'" in sql
-                and {"categoria_menu", "pagina_menu"} <= columnas
+                and "'esperando_decision_comentario'" in sql
+                and "'esperando_comentario'" in sql
+                and {
+                    "categoria_menu",
+                    "pagina_menu",
+                    "comentario_pendiente",
+                }
+                <= columnas
+            )
+        elif tabla == "consultas_finalizadas":
+            restricciones_actualizadas = (
+                restricciones_actualizadas
+                and "comentario" in cls._columnas_tabla(conexion, tabla)
             )
         return not restricciones_actualizadas
 
@@ -356,6 +389,11 @@ class RepositorioConversaciones:
             if "pagina_menu" in columnas
             else "0"
         )
+        comentario_pendiente = (
+            "comentario_pendiente"
+            if "comentario_pendiente" in columnas
+            else "NULL"
+        )
         conexion.executescript(
             f"""
             DROP TABLE IF EXISTS conversaciones_activas_nueva;
@@ -372,7 +410,9 @@ class RepositorioConversaciones:
                         'lista',
                         'menu_general',
                         'menu_especifico',
-                        'esperando_calificacion'
+                        'esperando_calificacion',
+                        'esperando_decision_comentario',
+                        'esperando_comentario'
                     )
                 ),
                 fecha_inicio_utc TEXT NOT NULL DEFAULT (
@@ -401,6 +441,10 @@ class RepositorioConversaciones:
                     calificacion_pendiente IS NULL
                     OR calificacion_pendiente BETWEEN 1 AND 5
                 ),
+                comentario_pendiente TEXT CHECK (
+                    comentario_pendiente IS NULL
+                    OR length(comentario_pendiente) BETWEEN 1 AND 1000
+                ),
                 UNIQUE (canal, usuario_temporal)
             );
             INSERT INTO conversaciones_activas_nueva (
@@ -408,7 +452,7 @@ class RepositorioConversaciones:
                 fecha_inicio_utc, fecha_ultima_actividad_utc,
                 meses_bebe, rango_edad_bebe, alimentos_contexto,
                 categoria_menu, pagina_menu,
-                calificacion_pendiente
+                calificacion_pendiente, comentario_pendiente
             )
             SELECT
                 id, canal, usuario_temporal,
@@ -423,7 +467,9 @@ class RepositorioConversaciones:
                 CASE WHEN {perfil_invalido}
                     THEN 0 ELSE {pagina_menu} END,
                 CASE WHEN {perfil_invalido}
-                    THEN NULL ELSE calificacion_pendiente END
+                    THEN NULL ELSE calificacion_pendiente END,
+                CASE WHEN {perfil_invalido}
+                    THEN NULL ELSE {comentario_pendiente} END
             FROM conversaciones_activas;
             DROP TABLE conversaciones_activas;
             ALTER TABLE conversaciones_activas_nueva
@@ -442,6 +488,8 @@ class RepositorioConversaciones:
             conexion,
             "consultas_finalizadas",
         )
+        columnas = cls._columnas_tabla(conexion, "consultas_finalizadas")
+        comentario = "comentario" if "comentario" in columnas else "NULL"
         conexion.executescript(
             f"""
             DROP TABLE IF EXISTS consultas_finalizadas_nueva;
@@ -458,13 +506,17 @@ class RepositorioConversaciones:
                     )
                 ),
                 calificacion INTEGER NOT NULL
-                    CHECK (calificacion BETWEEN 1 AND 5)
+                    CHECK (calificacion BETWEEN 1 AND 5),
+                comentario TEXT CHECK (
+                    comentario IS NULL OR length(comentario) BETWEEN 1 AND 1000
+                )
             );
             INSERT INTO consultas_finalizadas_nueva (
                 id, fecha_hora_cierre, meses_bebe,
-                rango_edad_bebe, calificacion
+                rango_edad_bebe, calificacion, comentario
             )
-            SELECT id, fecha_hora_cierre, {meses}, {rango}, calificacion
+            SELECT id, fecha_hora_cierre, {meses}, {rango}, calificacion,
+                   {comentario}
             FROM consultas_finalizadas;
             DROP TABLE consultas_finalizadas;
             ALTER TABLE consultas_finalizadas_nueva
@@ -533,6 +585,33 @@ class RepositorioConversaciones:
             ).fetchone()
 
         return self._conversacion_desde_fila(fila) if fila else None
+
+    def registrar_usuario_conocido(
+        self,
+        huella_usuario: str,
+        *,
+        ahora: datetime | None = None,
+    ) -> bool:
+        """Registra una huella HMAC y devuelve si era su primera aparición."""
+        if not isinstance(huella_usuario, str) or re.fullmatch(
+            r"[0-9a-f]{64}",
+            huella_usuario,
+        ) is None:
+            raise ValueError("huella_usuario debe ser un HMAC hexadecimal")
+        fecha = _serializar_utc(ahora or _ahora_utc())
+        with self._transaccion() as conexion:
+            cursor = conexion.execute(
+                """
+                INSERT INTO usuarios_conocidos (
+                    huella_usuario,
+                    fecha_primera_interaccion_utc
+                )
+                VALUES (?, ?)
+                ON CONFLICT (huella_usuario) DO NOTHING
+                """,
+                (huella_usuario, fecha),
+            )
+        return cursor.rowcount == 1
 
     def obtener_o_crear_conversacion(
         self,
@@ -606,6 +685,7 @@ class RepositorioConversaciones:
         categoria_menu: str | None | object = _SIN_CAMBIO,
         pagina_menu: int | object = _SIN_CAMBIO,
         calificacion_pendiente: int | None | object = _SIN_CAMBIO,
+        comentario_pendiente: str | None | object = _SIN_CAMBIO,
         ahora: datetime | None = None,
     ) -> ConversacionActiva:
         """Actualiza uno o varios campos; pasar ``None`` borra un opcional."""
@@ -675,6 +755,12 @@ class RepositorioConversaciones:
             )
             asignaciones.append("calificacion_pendiente = ?")
             parametros.append(calificacion_pendiente)
+        if comentario_pendiente is not _SIN_CAMBIO:
+            comentario_validado = _validar_comentario(
+                comentario_pendiente  # type: ignore[arg-type]
+            )
+            asignaciones.append("comentario_pendiente = ?")
+            parametros.append(comentario_validado)
 
         asignaciones.append("fecha_ultima_actividad_utc = ?")
         parametros.append(_serializar_utc(ahora or _ahora_utc()))
@@ -1015,10 +1101,12 @@ class RepositorioConversaciones:
         conversacion_id: int,
         calificacion: int,
         *,
+        comentario: str | None = None,
         fecha_hora: datetime | None = None,
     ) -> ConsultaFinalizada:
-        """Guarda el resumen mínimo y elimina transcript e identidad."""
+        """Guarda el resumen mínimo y elimina transcript e identidad temporal."""
         _validar_calificacion(calificacion)
+        comentario = _validar_comentario(comentario)
         fecha_lima = _serializar_lima(fecha_hora or _ahora_utc())
 
         with self._transaccion() as conexion:
@@ -1052,15 +1140,17 @@ class RepositorioConversaciones:
                     fecha_hora_cierre,
                     meses_bebe,
                     rango_edad_bebe,
-                    calificacion
+                    calificacion,
+                    comentario
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     fecha_lima,
                     conversacion["meses_bebe"],
                     conversacion["rango_edad_bebe"],
                     calificacion,
+                    comentario,
                 ),
             )
             consulta_id = cursor.lastrowid
@@ -1093,6 +1183,7 @@ class RepositorioConversaciones:
             meses_bebe=conversacion["meses_bebe"],
             rango_edad_bebe=conversacion["rango_edad_bebe"],
             calificacion=calificacion,
+            comentario=comentario,
             categorias=categorias,
         )
 
@@ -1123,6 +1214,7 @@ class RepositorioConversaciones:
             meses_bebe=fila["meses_bebe"],
             rango_edad_bebe=fila["rango_edad_bebe"],
             calificacion=fila["calificacion"],
+            comentario=fila["comentario"],
             categorias=tuple(
                 categoria["categoria"] for categoria in filas_categorias
             ),
@@ -1250,6 +1342,7 @@ class RepositorioConversaciones:
             categoria_menu=fila["categoria_menu"],
             pagina_menu=fila["pagina_menu"],
             calificacion_pendiente=fila["calificacion_pendiente"],
+            comentario_pendiente=fila["comentario_pendiente"],
         )
 
     @staticmethod

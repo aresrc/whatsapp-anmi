@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS conversaciones_activas (
             'lista',
             'menu_general',
             'menu_especifico',
-            'esperando_calificacion'
+            'esperando_calificacion',
+            'esperando_decision_comentario',
+            'esperando_comentario'
         )
     ),
     fecha_inicio_utc TEXT NOT NULL DEFAULT (
@@ -44,6 +46,11 @@ CREATE TABLE IF NOT EXISTS conversaciones_activas (
         CHECK (
             calificacion_pendiente IS NULL
             OR calificacion_pendiente BETWEEN 1 AND 5
+        ),
+    comentario_pendiente TEXT
+        CHECK (
+            comentario_pendiente IS NULL
+            OR length(comentario_pendiente) BETWEEN 1 AND 1000
         ),
     UNIQUE (canal, usuario_temporal)
 );
@@ -91,7 +98,24 @@ CREATE TABLE IF NOT EXISTS consultas_finalizadas (
             '6-12', '12-24', '24-36'
         )
     ),
-    calificacion INTEGER NOT NULL CHECK (calificacion BETWEEN 1 AND 5)
+    calificacion INTEGER NOT NULL CHECK (calificacion BETWEEN 1 AND 5),
+    comentario TEXT
+        CHECK (
+            comentario IS NULL OR length(comentario) BETWEEN 1 AND 1000
+        )
+);
+
+-- La huella es un HMAC irreversible calculado fuera de SQLite. Permite mostrar
+-- la presentación inicial una sola vez sin conservar teléfonos ni cookies.
+CREATE TABLE IF NOT EXISTS usuarios_conocidos (
+    huella_usuario TEXT PRIMARY KEY
+        CHECK (
+            length(huella_usuario) = 64
+            AND huella_usuario NOT GLOB '*[^0-9a-f]*'
+        ),
+    fecha_primera_interaccion_utc TEXT NOT NULL DEFAULT (
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    )
 );
 
 CREATE TABLE IF NOT EXISTS categorias_consulta (

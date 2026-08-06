@@ -22,8 +22,18 @@ VERIFY_TOKEN=...
 WHATSAPP_TOKEN=...
 PHONE_NUMBER_ID=...
 GRAPH_API_VERSION=...
+ANMI_USER_HASH_SECRET=...
 API_GOOGLE=...
 PORT=5000
+```
+
+`ANMI_USER_HASH_SECRET` debe ser un secreto estable de al menos 32 caracteres.
+Se usa únicamente para generar una huella HMAC irreversible que permite mostrar
+la presentación inicial una sola vez por usuario y canal. Si cambia, los
+usuarios volverán a ser considerados nuevos. Puede generarse con:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 La integración usa el modelo fijo `gemini-3.1-flash-lite`. Si `API_GOOGLE`
@@ -68,7 +78,9 @@ Después de la recomendación se presenta una lista paginada de categorías y,
 luego, de subcategorías de toda la base. Los menús respetan el límite de diez
 filas de WhatsApp. En cualquier nivel se puede escribir una consulta libre, que
 vuelve a pasar por Gemini y por el fallback local. Al escribir `fin`, incluso
-durante un menú, se solicita una calificación del 1 al 5 antes de cerrar.
+durante un menú, se solicita una calificación del 1 al 5. Después se pregunta
+mediante botones `Sí` y `No` si la persona desea dejar un comentario opcional
+de hasta 1000 caracteres antes de cerrar.
 
 ## Clasificación y caché de Gemini
 
@@ -101,12 +113,15 @@ python -m clasificador_google --verificar-cache
   identificador y el transcript necesarios para continuar el diálogo.
 - `consultas_finalizadas` y `categorias_consulta` conservan solo la fecha de
   cierre en hora de Lima, edad exacta o rango, calificación y categorías
-  respondidas.
+  respondidas, además del comentario opcional sin vínculo al usuario.
+- `usuarios_conocidos` conserva únicamente una huella HMAC de 64 caracteres y
+  la fecha del primer contacto. No guarda el teléfono ni la cookie original.
 
 Al confirmar la entrega del agradecimiento, el transcript y el identificador
-se eliminan en la misma transacción. Las sesiones abandonadas se eliminan
-después de 24 horas de inactividad. Las bases se crean en `instance/` y están
-excluidas de Git.
+temporal se eliminan en la misma transacción. La huella HMAC permanece para no
+repetir la presentación beta. Las sesiones abandonadas se eliminan después de
+24 horas de inactividad. Las bases se crean en `instance/` y están excluidas de
+Git.
 
 ## Pruebas
 

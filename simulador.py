@@ -88,6 +88,7 @@ def crear_app_simulador(
     *,
     iniciar_limpieza: bool = False,
     usar_google: bool = True,
+    secreto_identidad: str | None = None,
 ) -> Flask:
     """Crea una instancia aislada y configurable para pruebas."""
     aplicacion = Flask(__name__)
@@ -100,6 +101,11 @@ def crear_app_simulador(
         reglas,
         clasificador=(
             crear_clasificador_google(reglas) if usar_google else None
+        ),
+        secreto_identidad=(
+            os.getenv("ANMI_USER_HASH_SECRET", "")
+            if secreto_identidad is None
+            else secreto_identidad
         ),
     )
     servicio.inicializar()

@@ -13,6 +13,7 @@ from servicio_conversacion import (
     MENSAJE_AGRADECIMIENTO,
     MENSAJE_BIENVENIDA,
     MENSAJE_MESES_INVALIDOS,
+    OPCIONES_COMENTARIO,
     OPCIONES_EDAD,
     OpcionRespuesta,
     RespuestaConversacion,
@@ -91,6 +92,7 @@ class WebhookTest(unittest.TestCase):
         self.aplicacion = webhook.crear_app(
             self.ruta_db,
             usar_google=False,
+            secreto_identidad="secreto-pruebas-anmi-0123456789abcdef",
         )
         self.aplicacion.config.update(TESTING=True)
         self.cliente = self.aplicacion.test_client()
@@ -227,6 +229,29 @@ class WebhookTest(unittest.TestCase):
                     "reply": {"id": opcion.id, "title": opcion.titulo},
                 }
                 for opcion in OPCIONES_EDAD
+            ],
+        )
+
+    def test_enviar_respuesta_construye_botones_si_y_no(self) -> None:
+        respuesta = RespuestaConversacion(
+            "¿Deseas dejar un comentario?",
+            opciones=OPCIONES_COMENTARIO,
+        )
+        with patch.object(webhook, "enviar_mensaje", return_value=True) as enviar:
+            self.assertTrue(webhook.enviar_respuesta("51987654321", respuesta))
+
+        botones = enviar.call_args.args[1]["interactive"]["action"]["buttons"]
+        self.assertEqual(
+            botones,
+            [
+                {
+                    "type": "reply",
+                    "reply": {"id": "comentario_si", "title": "Sí"},
+                },
+                {
+                    "type": "reply",
+                    "reply": {"id": "comentario_no", "title": "No"},
+                },
             ],
         )
 
@@ -389,7 +414,7 @@ class WebhookTest(unittest.TestCase):
 
         self.assertEqual(bienvenida.status_code, 200)
         self.assertEqual(edad.status_code, 200)
-        self.assertEqual(enviar.call_args_list[0].args[1]["type"], "interactive")
+        self.assertEqual(enviar.call_args_list[1].args[1]["type"], "interactive")
         servicio = self.aplicacion.extensions["anmi_servicio"]
         conversacion = servicio.repositorio.obtener_conversacion(
             "whatsapp",
@@ -431,6 +456,7 @@ class SimuladorWebTest(unittest.TestCase):
         self.aplicacion = simulador.crear_app_simulador(
             self.ruta_db,
             usar_google=False,
+            secreto_identidad="secreto-pruebas-anmi-0123456789abcdef",
         )
         self.aplicacion.config.update(TESTING=True)
         self.cliente = self.aplicacion.test_client()

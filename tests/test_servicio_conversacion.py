@@ -19,6 +19,8 @@ from motor_conocimientos import (
 from servicio_conversacion import (
     ESTADO_ESPERANDO_ALIMENTOS,
     ESTADO_ESPERANDO_CALIFICACION,
+    ESTADO_ESPERANDO_COMENTARIO,
+    ESTADO_ESPERANDO_DECISION_COMENTARIO,
     ESTADO_ESPERANDO_EDAD_RECETA,
     ESTADO_ESPERANDO_MESES,
     ESTADO_LISTA,
@@ -30,12 +32,18 @@ from servicio_conversacion import (
     MENSAJE_BIENVENIDA,
     MENSAJE_CALIFICACION,
     MENSAJE_CALIFICACION_INVALIDA,
+    MENSAJE_COMENTARIO_INVALIDO,
+    MENSAJE_DECISION_COMENTARIO,
+    MENSAJE_DECISION_COMENTARIO_INVALIDA,
     MENSAJE_LISTA_SIN_BEBE,
     MENSAJE_MESES_INVALIDOS,
+    MENSAJE_PRESENTACION_BETA,
     MENSAJE_RECETA_SIN_COBERTURA,
     MENSAJE_RECETA_SIN_EDAD,
     MENSAJE_RECETA_EXCLUIDA,
     MENSAJE_RECORDATORIO_FIN,
+    MENSAJE_SOLICITUD_COMENTARIO,
+    OPCIONES_COMENTARIO,
     OPCIONES_EDAD,
     ServicioConversacion,
 )
@@ -73,12 +81,20 @@ class ServicioConversacionTest(unittest.TestCase):
         self.ruta_db = Path(self.directorio_temporal.name) / "servicio.sqlite3"
         self.repositorio = RepositorioConversaciones(self.ruta_db)
         self.reglas = (crear_resultado().regla,)
-        self.servicio = ServicioConversacion(self.repositorio, self.reglas)
+        self.servicio = ServicioConversacion(
+            self.repositorio,
+            self.reglas,
+            secreto_identidad="secreto-pruebas-anmi-0123456789abcdef",
+        )
         self.servicio.inicializar()
 
     def _usar_reglas_reales(self) -> None:
         self.reglas = cargar_motor_conocimientos()
-        self.servicio = ServicioConversacion(self.repositorio, self.reglas)
+        self.servicio = ServicioConversacion(
+            self.repositorio,
+            self.reglas,
+            secreto_identidad="secreto-pruebas-anmi-0123456789abcdef",
+        )
         self.servicio.inicializar()
 
     def _confirmar(self, resultado: object) -> int:
@@ -139,10 +155,13 @@ class ServicioConversacionTest(unittest.TestCase):
             )
 
         self.assertEqual(inicio.estado, ESTADO_ESPERANDO_MESES)
-        self.assertEqual([r.texto for r in inicio.respuestas], [MENSAJE_BIENVENIDA])
-        self.assertEqual(inicio.respuestas[0].opciones, OPCIONES_EDAD)
+        self.assertEqual(
+            [r.texto for r in inicio.respuestas],
+            [MENSAJE_PRESENTACION_BETA, MENSAJE_BIENVENIDA],
+        )
+        self.assertEqual(inicio.respuestas[-1].opciones, OPCIONES_EDAD)
         buscar.assert_called_once_with(consulta_inicial, self.reglas)
-        self.assertEqual(self._confirmar(inicio), 1)
+        self.assertEqual(self._confirmar(inicio), 2)
 
         meses = self.servicio.procesar_mensaje("simulador", "adaptativo", "7")
         self.assertEqual(meses.estado, ESTADO_ESPERANDO_ALIMENTOS)
@@ -179,10 +198,16 @@ class ServicioConversacionTest(unittest.TestCase):
         self.assertEqual(inicio.estado, ESTADO_ESPERANDO_MESES)
         self.assertEqual(
             [respuesta.texto for respuesta in inicio.respuestas],
-            [MENSAJE_BIENVENIDA],
+            [MENSAJE_PRESENTACION_BETA, MENSAJE_BIENVENIDA],
         )
         buscar_regla.assert_not_called()
         self._confirmar(inicio)
+        with closing(sqlite3.connect(self.ruta_db)) as conexion:
+            huella = conexion.execute(
+                "SELECT huella_usuario FROM usuarios_conocidos"
+            ).fetchone()[0]
+        self.assertEqual(len(huella), 64)
+        self.assertNotIn("usuario-nuevo", huella)
 
         saludo_repetido = self.servicio.procesar_mensaje(
             "whatsapp",
@@ -808,20 +833,71 @@ class ServicioConversacionTest(unittest.TestCase):
         calificacion = self.servicio.procesar_mensaje(
             "simulador", "cierre", "5"
         )
-        self.assertTrue(calificacion.finalizacion_pendiente)
+        self.assertFalse(calificacion.finalizacion_pendiente)
+        self.assertEqual(
+            calificacion.estado,
+            ESTADO_ESPERANDO_DECISION_COMENTARIO,
+        )
         self.assertEqual(
             calificacion.respuestas[0].texto,
+            MENSAJE_DECISION_COMENTARIO,
+        )
+        self.assertEqual(calificacion.respuestas[0].opciones, OPCIONES_COMENTARIO)
+        self._confirmar(calificacion)
+
+        decision_invalida = self.servicio.procesar_mensaje(
+            "simulador", "cierre", "quizá"
+        )
+        self.assertEqual(
+            decision_invalida.respuestas[0].texto,
+            MENSAJE_DECISION_COMENTARIO_INVALIDA,
+        )
+        self.assertEqual(
+            decision_invalida.respuestas[0].opciones,
+            OPCIONES_COMENTARIO,
+        )
+        self._confirmar(decision_invalida)
+
+        decision = self.servicio.procesar_mensaje(
+            "simulador", "cierre", "comentario_si"
+        )
+        self.assertEqual(decision.estado, ESTADO_ESPERANDO_COMENTARIO)
+        self.assertEqual(
+            decision.respuestas[0].texto,
+            MENSAJE_SOLICITUD_COMENTARIO,
+        )
+        self._confirmar(decision)
+
+        comentario_invalido = self.servicio.procesar_mensaje(
+            "simulador", "cierre", "x" * 1001
+        )
+        self.assertEqual(
+            comentario_invalido.respuestas[0].texto,
+            MENSAJE_COMENTARIO_INVALIDO,
+        )
+        self._confirmar(comentario_invalido)
+
+        comentario = self.servicio.procesar_mensaje(
+            "simulador", "cierre", "Me gustaría una navegación más corta."
+        )
+        self.assertTrue(comentario.finalizacion_pendiente)
+        self.assertEqual(
+            comentario.respuestas[0].texto,
             MENSAJE_AGRADECIMIENTO,
         )
         self.assertIsNotNone(
             self.repositorio.obtener_conversacion_por_id(conversacion_id)
         )
-        self.assertEqual(self._confirmar(calificacion), 1)
+        self.assertEqual(self._confirmar(comentario), 1)
 
         consulta_id = self.servicio.confirmar_finalizacion(conversacion_id)
         resumen = self.repositorio.obtener_consulta_finalizada(consulta_id)
         self.assertEqual(resumen.meses_bebe, 11)
         self.assertEqual(resumen.calificacion, 5)
+        self.assertEqual(
+            resumen.comentario,
+            "Me gustaría una navegación más corta.",
+        )
         self.assertEqual(resumen.categorias, ("Anemia",))
         self.assertIsNone(
             self.repositorio.obtener_conversacion("simulador", "cierre")
@@ -831,7 +907,44 @@ class ServicioConversacionTest(unittest.TestCase):
         nueva = self._iniciar("cierre", "otra consulta")
         self.assertNotEqual(nueva.conversacion_id, conversacion_id)
         self.assertEqual(nueva.estado, ESTADO_ESPERANDO_MESES)
+        self.assertEqual(
+            [respuesta.texto for respuesta in nueva.respuestas],
+            [MENSAJE_BIENVENIDA],
+        )
         self.assertEqual(self._contar("consultas_finalizadas"), 1)
+
+    def test_comentario_no_o_fin_cierra_sin_guardar_texto(self) -> None:
+        for usuario, respuesta in (
+            ("sin-comentario", "comentario_no"),
+            ("omite-comentario", "fin"),
+        ):
+            with self.subTest(respuesta=respuesta):
+                conversacion_id = self._completar_onboarding(usuario)
+                fin = self.servicio.procesar_mensaje(
+                    "simulador", usuario, "fin"
+                )
+                self._confirmar(fin)
+                calificacion = self.servicio.procesar_mensaje(
+                    "simulador", usuario, "4"
+                )
+                self._confirmar(calificacion)
+                cierre = self.servicio.procesar_mensaje(
+                    "simulador", usuario, respuesta
+                )
+
+                self.assertTrue(cierre.finalizacion_pendiente)
+                self.assertEqual(
+                    cierre.respuestas[0].texto,
+                    MENSAJE_AGRADECIMIENTO,
+                )
+                self._confirmar(cierre)
+                consulta_id = self.servicio.confirmar_finalizacion(
+                    conversacion_id
+                )
+                resumen = self.repositorio.obtener_consulta_finalizada(
+                    consulta_id
+                )
+                self.assertIsNone(resumen.comentario)
 
     def test_fin_en_cualquier_estado_solicita_calificacion(self) -> None:
         desde_inicio = self.servicio.procesar_mensaje(
@@ -916,14 +1029,18 @@ class ServicioConversacionTest(unittest.TestCase):
                 "whatsapp", "emergencia", "mi bebé no puede respirar"
             )
 
-        self.assertEqual(len(resultado.respuestas), 5)
+        self.assertEqual(len(resultado.respuestas), 6)
         self.assertEqual(resultado.respuestas[0].categoria, "Emergencia")
         self.assertEqual(
             resultado.respuestas[3].texto,
             MENSAJE_RECORDATORIO_FIN,
         )
-        self.assertEqual(resultado.respuestas[4].texto, MENSAJE_BIENVENIDA)
-        self.assertEqual(self._confirmar(resultado), 5)
+        self.assertEqual(
+            resultado.respuestas[4].texto,
+            MENSAJE_PRESENTACION_BETA,
+        )
+        self.assertEqual(resultado.respuestas[5].texto, MENSAJE_BIENVENIDA)
+        self.assertEqual(self._confirmar(resultado), 6)
         self.assertEqual(
             self.repositorio.listar_categorias(resultado.conversacion_id),
             ("Emergencia",),

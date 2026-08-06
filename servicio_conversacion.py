@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 import re
 import threading
@@ -15,7 +17,11 @@ from clasificador_google import (
     ErrorClasificacionGoogle,
     SeleccionGoogle,
 )
-from conversaciones import ConversacionActiva, RepositorioConversaciones
+from conversaciones import (
+    LONGITUD_MAXIMA_COMENTARIO,
+    ConversacionActiva,
+    RepositorioConversaciones,
+)
 from motor_conocimientos import (
     PerfilAlimentario,
     PerfilReceta,
@@ -39,6 +45,8 @@ ESTADO_MENU_GENERAL = "menu_general"
 ESTADO_MENU_ESPECIFICO = "menu_especifico"
 ESTADO_LISTA = ESTADO_MENU_GENERAL  # Alias conservado para integraciones previas.
 ESTADO_ESPERANDO_CALIFICACION = "esperando_calificacion"
+ESTADO_ESPERANDO_DECISION_COMENTARIO = "esperando_decision_comentario"
+ESTADO_ESPERANDO_COMENTARIO = "esperando_comentario"
 
 
 @dataclass(frozen=True)
@@ -54,6 +62,10 @@ OPCIONES_EDAD = (
     OpcionRespuesta("edad_6_8", "6 a 8 meses"),
     OpcionRespuesta("edad_9_11", "9 a 11 meses"),
     OpcionRespuesta("edad_12_23", "12 a 23 meses"),
+)
+OPCIONES_COMENTARIO = (
+    OpcionRespuesta("comentario_si", "Sí"),
+    OpcionRespuesta("comentario_no", "No"),
 )
 RANGOS_EDAD_POR_OPCION = {
     "edad_6_8": "6-8",
@@ -78,6 +90,12 @@ MENSAJE_BIENVENIDA = (
     "¿Qué edad tiene tu bebé? Elige un rango o responde con su edad exacta "
     "en meses (del 6 al 36). También puedes escribir «no aplica»."
 )
+MENSAJE_PRESENTACION_BETA = (
+    "🧡 ANMI es un asistente nutricional materno-infantil que brinda información "
+    "revisada sobre alimentación, nutrición y anemia para bebés y sus cuidadores. "
+    "Actualmente se encuentra en fase beta y continúa mejorando. ANMI no "
+    "reemplaza la evaluación ni las indicaciones de un profesional de salud."
+)
 MENSAJE_MESES_INVALIDOS = (
     "Por favor, elige un rango, indica un solo número del 6 al 36 para los "
     "meses de tu bebé, o escribe «no aplica»."
@@ -97,15 +115,31 @@ MENSAJE_LISTA_SIN_BEBE = (
 )
 MENSAJE_CALIFICACION = (
     "⭐ ¿Cómo calificarías la atención de ANMI?\n\n"
-    "1. ⭐Mala \n"
-    "2. ⭐⭐Neutral \n"
-    "3. ⭐⭐⭐Buena \n"
-    "4. ⭐⭐⭐⭐Muy Buena \n"
-    "5. ⭐⭐⭐⭐⭐Excelente \n\n"
+    "1. ⭐Mala\n"
+    "2. ⭐⭐Neutral\n"
+    "3. ⭐⭐⭐Buena\n"
+    "4. ⭐⭐⭐⭐Muy Buena\n"
+    "5. ⭐⭐⭐⭐⭐Excelente\n\n"
     "Responde solo con un número del 1 al 5."
 )
 MENSAJE_CALIFICACION_INVALIDA = (
     "La calificación debe ser un número entero del 1 al 5."
+)
+MENSAJE_DECISION_COMENTARIO = (
+    "💬 ¿Deseas dejarnos un comentario sobre tu experiencia? Tus comentarios "
+    "nos ayudarían a mejorar ANMI."
+)
+MENSAJE_DECISION_COMENTARIO_INVALIDA = (
+    "Por favor, elige «Sí» o «No» para indicar si deseas dejar un comentario."
+)
+MENSAJE_SOLICITUD_COMENTARIO = (
+    "Cuéntanos qué podríamos mejorar. Escribe tu comentario en un solo mensaje "
+    f"(máximo {LONGITUD_MAXIMA_COMENTARIO} caracteres)."
+)
+MENSAJE_COMENTARIO_INVALIDO = (
+    "El comentario debe tener entre 1 y "
+    f"{LONGITUD_MAXIMA_COMENTARIO} caracteres. También puedes escribir «no» "
+    "o «fin» para omitirlo."
 )
 MENSAJE_NO_ENCONTRADO = (
     "No logré identificar tu consulta con suficiente seguridad. "
@@ -120,7 +154,9 @@ MENSAJE_RECORDATORIO_FIN = (
     "📝 Recuerda: cuando quieras terminar la conversación, escribe «fin»."
 )
 MENSAJE_AGRADECIMIENTO = (
-    "🙏✨ ¡Gracias por calificar tu experiencia con ANMI! 💚 "
+    "🙏✨ ¡Gracias por calificar tu experiencia con ANMI! 💚\n\n"
+    "ANMI se encuentra en fase beta y estamos trabajando para asegurarnos de "
+    "que tengas la mejor experiencia posible.\n\n"
     "Puedes volver a usar este chat cuando lo necesites. 👋😊"
 )
 MENSAJE_RECETA_SIN_EDAD = (
@@ -169,6 +205,8 @@ PREFIJO_REGLA = "menu_regla:"
 PREFIJO_PAGINA_GENERAL = "menu_general:"
 PREFIJO_PAGINA_ESPECIFICA = "menu_especifico:"
 ID_VOLVER_CATEGORIAS = "menu_volver_categorias"
+ID_COMENTARIO_SI = "comentario_si"
+ID_COMENTARIO_NO = "comentario_no"
 
 
 @dataclass(frozen=True)
@@ -328,11 +366,21 @@ class ServicioConversacion:
         *,
         horas_retencion: int = 24,
         clasificador: ClasificadorConsultas | None = None,
+        secreto_identidad: str | None = None,
     ) -> None:
+        if secreto_identidad and len(secreto_identidad) < 32:
+            raise ValueError(
+                "secreto_identidad debe tener al menos 32 caracteres"
+            )
         self.repositorio = repositorio
         self.reglas = reglas
         self.horas_retencion = horas_retencion
         self.clasificador = clasificador
+        self._secreto_identidad = (
+            secreto_identidad.encode("utf-8")
+            if isinstance(secreto_identidad, str) and secreto_identidad
+            else None
+        )
         self.perfiles_recetas = obtener_perfiles_recetas(reglas)
         self.grupos_alimentos = obtener_grupos_alimentos(
             self.perfiles_recetas
@@ -440,6 +488,14 @@ class ServicioConversacion:
             )
 
         texto_normalizado = normalizar_texto(texto)
+        if conversacion.estado == ESTADO_ESPERANDO_CALIFICACION:
+            if texto_normalizado == "fin":
+                return self._solicitar_cierre(conversacion)
+            return self._procesar_calificacion(conversacion, texto)
+        if conversacion.estado == ESTADO_ESPERANDO_DECISION_COMENTARIO:
+            return self._procesar_decision_comentario(conversacion, texto)
+        if conversacion.estado == ESTADO_ESPERANDO_COMENTARIO:
+            return self._procesar_comentario(conversacion, texto)
         if texto_normalizado == "fin":
             return self._solicitar_cierre(conversacion)
 
@@ -449,8 +505,6 @@ class ServicioConversacion:
             return self._procesar_alimentos(conversacion, texto)
         if conversacion.estado == ESTADO_ESPERANDO_EDAD_RECETA:
             return self._procesar_edad_receta(conversacion, texto)
-        if conversacion.estado == ESTADO_ESPERANDO_CALIFICACION:
-            return self._procesar_calificacion(conversacion, texto)
         texto_opcion = texto.strip()
         if texto_opcion.startswith("menu_"):
             return self._procesar_menu(conversacion, texto_opcion)
@@ -469,8 +523,27 @@ class ServicioConversacion:
         consulta = self.repositorio.finalizar_conversacion(
             conversacion_id,
             conversacion.calificacion_pendiente,
+            comentario=conversacion.comentario_pendiente,
         )
         return consulta.id
+
+    def _registrar_primera_interaccion(
+        self,
+        conversacion: ConversacionActiva,
+    ) -> bool:
+        if self._secreto_identidad is None:
+            raise RuntimeError(
+                "ANMI_USER_HASH_SECRET es obligatorio para reconocer usuarios"
+            )
+        identidad = (
+            f"{conversacion.canal}\0{conversacion.usuario_temporal}"
+        ).encode("utf-8")
+        huella = hmac.new(
+            self._secreto_identidad,
+            identidad,
+            hashlib.sha256,
+        ).hexdigest()
+        return self.repositorio.registrar_usuario_conocido(huella)
 
     def _registrar_usuario(
         self,
@@ -536,6 +609,15 @@ class ServicioConversacion:
             partes.append(f"*{grupo}:*")
             partes.extend(f"• {alimento}" for alimento in alimentos)
         return RespuestaConversacion("\n".join(partes))
+
+    @staticmethod
+    def _respuesta_decision_comentario(
+        texto: str = MENSAJE_DECISION_COMENTARIO,
+    ) -> RespuestaConversacion:
+        return RespuestaConversacion(
+            texto,
+            opciones=OPCIONES_COMENTARIO,
+        )
 
     @staticmethod
     def _acortar_titulo(texto: str, limite: int = 24) -> str:
@@ -667,6 +749,8 @@ class ServicioConversacion:
             return None
         if conversacion.estado == ESTADO_ESPERANDO_MESES:
             return _respuesta_bienvenida()
+        if conversacion.estado == ESTADO_ESPERANDO_DECISION_COMENTARIO:
+            return self._respuesta_decision_comentario()
         if conversacion.estado == ESTADO_MENU_GENERAL:
             return self._respuesta_menu_general(conversacion.pagina_menu)
         if (
@@ -683,6 +767,10 @@ class ServicioConversacion:
     def _texto_visible_opcion(self, texto: str) -> str:
         if texto in TITULOS_OPCIONES:
             return TITULOS_OPCIONES[texto]
+        if texto == ID_COMENTARIO_SI:
+            return "Sí"
+        if texto == ID_COMENTARIO_NO:
+            return "No"
         if texto == ID_VOLVER_CATEGORIAS:
             return "Volver a categorías"
         if texto.startswith(PREFIJO_CATEGORIA):
@@ -715,6 +803,8 @@ class ServicioConversacion:
             if _es_emergencia(resultado):
                 assert resultado is not None
                 respuestas.extend(self._respuestas_desde_regla(resultado))
+        if self._registrar_primera_interaccion(conversacion):
+            respuestas.append(RespuestaConversacion(MENSAJE_PRESENTACION_BETA))
         respuestas.append(_respuesta_bienvenida())
         return self._resultado(
             conversacion.id,
@@ -919,11 +1009,86 @@ class ServicioConversacion:
 
         self.repositorio.actualizar_conversacion(
             conversacion.id,
+            estado=ESTADO_ESPERANDO_DECISION_COMENTARIO,
             calificacion_pendiente=calificacion,
+            comentario_pendiente=None,
         )
         return self._resultado(
             conversacion.id,
-            ESTADO_ESPERANDO_CALIFICACION,
+            ESTADO_ESPERANDO_DECISION_COMENTARIO,
+            (self._respuesta_decision_comentario(),),
+        )
+
+    def _procesar_decision_comentario(
+        self,
+        conversacion: ConversacionActiva,
+        texto: str,
+    ) -> ResultadoConversacion:
+        texto_normalizado = normalizar_texto(texto)
+        if texto == ID_COMENTARIO_SI or texto_normalizado == "si":
+            self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_ESPERANDO_COMENTARIO,
+                comentario_pendiente=None,
+            )
+            return self._resultado(
+                conversacion.id,
+                ESTADO_ESPERANDO_COMENTARIO,
+                (RespuestaConversacion(MENSAJE_SOLICITUD_COMENTARIO),),
+            )
+        if (
+            texto == ID_COMENTARIO_NO
+            or texto_normalizado in {"no", "fin"}
+        ):
+            self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                comentario_pendiente=None,
+            )
+            return self._resultado(
+                conversacion.id,
+                ESTADO_ESPERANDO_DECISION_COMENTARIO,
+                (RespuestaConversacion(MENSAJE_AGRADECIMIENTO),),
+                finalizacion_pendiente=True,
+            )
+        return self._resultado(
+            conversacion.id,
+            ESTADO_ESPERANDO_DECISION_COMENTARIO,
+            (
+                self._respuesta_decision_comentario(
+                    MENSAJE_DECISION_COMENTARIO_INVALIDA
+                ),
+            ),
+        )
+
+    def _procesar_comentario(
+        self,
+        conversacion: ConversacionActiva,
+        texto: str,
+    ) -> ResultadoConversacion:
+        texto_normalizado = normalizar_texto(texto)
+        if texto_normalizado in {"no", "fin"}:
+            self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                comentario_pendiente=None,
+            )
+        else:
+            comentario = texto.strip()
+            if (
+                not comentario
+                or len(comentario) > LONGITUD_MAXIMA_COMENTARIO
+            ):
+                return self._resultado(
+                    conversacion.id,
+                    ESTADO_ESPERANDO_COMENTARIO,
+                    (RespuestaConversacion(MENSAJE_COMENTARIO_INVALIDO),),
+                )
+            self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                comentario_pendiente=comentario,
+            )
+        return self._resultado(
+            conversacion.id,
+            ESTADO_ESPERANDO_COMENTARIO,
             (RespuestaConversacion(MENSAJE_AGRADECIMIENTO),),
             finalizacion_pendiente=True,
         )

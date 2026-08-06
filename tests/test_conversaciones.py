@@ -68,6 +68,7 @@ class RepositorioConversacionesTests(unittest.TestCase):
             "mensajes_activos",
             "consultas_finalizadas",
             "categorias_consulta",
+            "usuarios_conocidos",
         }
         with closing(sqlite3.connect(self.ruta_bd)) as conexion:
             encontradas = {
@@ -142,6 +143,19 @@ class RepositorioConversacionesTests(unittest.TestCase):
             self.repositorio.obtener_conversacion_por_id(conversacion.id),
             self.repositorio.obtener_conversacion("simulador", "navegador-1"),
         )
+
+    def test_usuario_conocido_se_registra_una_sola_vez_por_huella(self) -> None:
+        huella = "a" * 64
+        self.assertTrue(self.repositorio.registrar_usuario_conocido(huella))
+        self.assertFalse(self.repositorio.registrar_usuario_conocido(huella))
+        self.assertEqual(
+            self._valor_sql("SELECT COUNT(*) FROM usuarios_conocidos"),
+            1,
+        )
+        for invalida in ("a" * 63, "G" * 64, "telefono-directo"):
+            with self.subTest(huella=invalida):
+                with self.assertRaises(ValueError):
+                    self.repositorio.registrar_usuario_conocido(invalida)
 
     def test_id_externo_se_deduplica_globalmente(self) -> None:
         primera = self.repositorio.crear_conversacion("whatsapp", "usuario-a")
@@ -235,6 +249,14 @@ class RepositorioConversacionesTests(unittest.TestCase):
                     self.repositorio.finalizar_conversacion(
                         conversacion.id,
                         calificacion,
+                    )
+
+        for comentario in ("", " " * 3, "x" * 1001):
+            with self.subTest(comentario=comentario[:20]):
+                with self.assertRaises(ValueError):
+                    self.repositorio.actualizar_conversacion(
+                        conversacion.id,
+                        comentario_pendiente=comentario,
                     )
 
         self.assertIsNotNone(
@@ -534,11 +556,13 @@ class RepositorioConversacionesTests(unittest.TestCase):
         resumen = self.repositorio.finalizar_conversacion(
             conversacion.id,
             5,
+            comentario="  La respuesta fue clara.  ",
             fecha_hora=cierre,
         )
 
         self.assertEqual(resumen.meses_bebe, 11)
         self.assertEqual(resumen.calificacion, 5)
+        self.assertEqual(resumen.comentario, "La respuesta fue clara.")
         self.assertEqual(resumen.categorias, ("Nutrición", "Anemia"))
         self.assertIsNone(
             self.repositorio.obtener_conversacion_por_id(conversacion.id)
@@ -555,6 +579,7 @@ class RepositorioConversacionesTests(unittest.TestCase):
                 "meses_bebe",
                 "rango_edad_bebe",
                 "calificacion",
+                "comentario",
             },
         )
         self.assertEqual(
