@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import random
 import re
 import unittest
 from pathlib import Path
@@ -20,6 +21,7 @@ ENCABEZADOS_V2 = [
     "Paginas",
     "Documento",
     "Enlace",
+    "Ingredientes de la receta",
 ]
 
 PREFIJOS_VISUALES = (
@@ -69,12 +71,40 @@ class CsvMotorConocimientosV2Tests(unittest.TestCase):
             cls.filas = tuple(lector)
         cls.reglas = motor.cargar_motor_conocimientos(cls.ruta_csv)
 
-    def test_usa_csv_v2_con_bom_nueve_encabezados_y_412_filas(self) -> None:
+    def test_usa_csv_v2_con_bom_diez_encabezados_y_412_filas(self) -> None:
         self.assertEqual(self.ruta_csv.name, "motor_conocimientos_v2.csv")
         self.assertEqual(self.ruta_csv.read_bytes()[:3], b"\xef\xbb\xbf")
         self.assertEqual(self.encabezados, ENCABEZADOS_V2)
         self.assertEqual(len(self.filas), 412)
         self.assertEqual(len(self.reglas), 412)
+
+    def test_recetas_cargan_ingredientes_desde_csv(self) -> None:
+        recetas = [
+            regla
+            for regla in self.reglas
+            if motor.normalizar_texto(regla.categoria).startswith("recetas minsa")
+        ]
+        self.assertEqual(len(recetas), 14)
+        self.assertTrue(all(regla.ingredientes_receta for regla in recetas))
+        pure = next(regla for regla in recetas if regla.id_regla == "ANMI-0159")
+        self.assertEqual(pure.ingredientes_receta, ("bazo", "camote", "arroz"))
+        self.assertEqual(len(motor.obtener_perfiles_recetas(self.reglas)), 14)
+
+    def test_receta_variada_solo_alterna_entre_empates_seguros(self) -> None:
+        recetas = motor.filtrar_recetas_por_edad(
+            motor.obtener_perfiles_recetas(self.reglas),
+            rango_edad_bebe="6-8",
+        )
+        perfil = motor.extraer_perfil_alimentario("come bazo")
+        seleccionadas = {
+            motor.seleccionar_receta_variada(
+                recetas,
+                perfil,
+                generador=random.Random(semilla),
+            ).regla.id_regla
+            for semilla in range(10)
+        }
+        self.assertEqual(seleccionadas, {"ANMI-0157", "ANMI-0159"})
 
     def test_carga_metadatos_de_la_fuente_sin_perderlos(self) -> None:
         primera = self.reglas[0]

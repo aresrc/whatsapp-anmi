@@ -35,7 +35,16 @@ from motor_conocimientos import (
     obtener_grupos_alimentos,
     obtener_perfiles_recetas,
     rankear_recetas,
+    seleccionar_receta_variada,
 )
+from taxonomia import (
+    SECCIONES,
+    candidatas_para_texto,
+    jerarquia_de_regla,
+    seccion_de_regla,
+    titulo_visible,
+)
+from privacidad import redactar_datos_personales
 
 
 ESTADO_ESPERANDO_MESES = "esperando_meses"
@@ -88,7 +97,7 @@ TITULOS_OPCIONES.update(
 MENSAJE_BIENVENIDA = (
     "👋 Hola, soy ANMI, tu Asistente Nutricional Materno infantil. 👶🥗\n\n"
     "¿Qué edad tiene tu bebé? Elige un rango o responde con su edad exacta "
-    "en meses (del 6 al 36). También puedes escribir «no aplica»."
+    "en meses (del 6 al 24). También puedes escribir «no aplica»."
 )
 MENSAJE_PRESENTACION_BETA = (
     "🧡 ANMI es un asistente nutricional materno-infantil que brinda información "
@@ -100,7 +109,7 @@ MENSAJE_MESES_INVALIDOS = (
     "Por favor, elige un rango, indica un solo número del 6 al 36 para los "
     "meses de tu bebé, o escribe «no aplica»."
 )
-MENSAJE_ALIMENTOS = "🍽️ ¿Qué alimentos logra comer actualmente tu bebé?"
+MENSAJE_ALIMENTOS = "🍽️ ¿Qué alimentos suele comer actualmente tu bebé?"
 MENSAJE_ALIMENTOS_INVALIDOS = (
     "No logré reconocer alimentos de la lista. Cuéntame cuáles come, cuáles "
     "no le gustan y cuáles no puede consumir (máximo 500 caracteres)."
@@ -178,11 +187,11 @@ MENSAJE_RECETA_EXCLUIDA = (
     "puede consumir. No recomendaré una receta insegura."
 )
 MENSAJE_MENU_GENERAL = (
-    "También puedes explorar la base de conocimientos. Elige una categoría "
+    "También puedes explorar la información revisada. Elige un tema "
     "general o escribe directamente tu pregunta."
 )
 MENSAJE_MENU_ESPECIFICO = (
-    "Elige una categoría específica para recibir la información revisada. "
+    "Elige un tema específico para recibir la información revisada. "
     "También puedes escribir directamente tu pregunta."
 )
 MENSAJE_EDAD_ACTUALIZADA = (
@@ -205,6 +214,7 @@ PREFIJO_REGLA = "menu_regla:"
 PREFIJO_PAGINA_GENERAL = "menu_general:"
 PREFIJO_PAGINA_ESPECIFICA = "menu_especifico:"
 ID_VOLVER_CATEGORIAS = "menu_volver_categorias"
+PREFIJO_RECETA_COMPATIBLE = "receta_compatible:"
 ID_COMENTARIO_SI = "comentario_si"
 ID_COMENTARIO_NO = "comentario_no"
 
@@ -388,13 +398,34 @@ class ServicioConversacion:
         self.reglas_por_id = {
             regla.id_regla: regla for regla in reglas if regla.id_regla
         }
-        self.categorias = tuple(dict.fromkeys(regla.categoria for regla in reglas))
-        self.reglas_por_categoria = {
-            categoria: tuple(
-                regla for regla in reglas if regla.categoria == categoria
-            )
-            for categoria in self.categorias
+        self.categorias = SECCIONES
+        rutas_por_regla = {
+            regla.id_regla: jerarquia_de_regla(regla).niveles
+            for regla in reglas
         }
+        self.hijos_por_categoria: dict[str, tuple[str, ...]] = {}
+        reglas_por_ruta: dict[str, list[ReglaConocimiento]] = {}
+        for regla in reglas:
+            ruta = rutas_por_regla[regla.id_regla]
+            for indice in range(1, len(ruta)):
+                padre = "|".join(ruta[:indice])
+                hijo = "|".join(ruta[: indice + 1])
+                existentes = list(self.hijos_por_categoria.get(padre, ()))
+                if hijo not in existentes:
+                    existentes.append(hijo)
+                    self.hijos_por_categoria[padre] = tuple(existentes)
+            reglas_por_ruta.setdefault("|".join(ruta), []).append(regla)
+        self.reglas_por_categoria = {
+            ruta: tuple(reglas_ruta)
+            for ruta, reglas_ruta in reglas_por_ruta.items()
+        }
+        self.nodos_categoria = tuple(
+            dict.fromkeys(
+                nodo
+                for nodo in (*self.hijos_por_categoria, *self.reglas_por_categoria)
+                if "|" in nodo
+            )
+        )
 
     @property
     def modo_clasificador(self) -> str:
@@ -446,6 +477,9 @@ class ServicioConversacion:
         mensaje_externo_id: str | None = None,
     ) -> ResultadoConversacion:
         """Procesa una entrada sin depender de Flask ni de Meta."""
+        # Defensa en profundidad: también protege simulador e integraciones
+        # que no pasan por el adaptador Flask.
+        texto = redactar_datos_personales(texto).texto
         self.limpiar_expiradas()
         conversacion = self.repositorio.obtener_conversacion(
             canal,
@@ -506,6 +540,11 @@ class ServicioConversacion:
         if conversacion.estado == ESTADO_ESPERANDO_EDAD_RECETA:
             return self._procesar_edad_receta(conversacion, texto)
         texto_opcion = texto.strip()
+        if texto_opcion.startswith(PREFIJO_RECETA_COMPATIBLE):
+            return self._procesar_receta_compatible(
+                conversacion,
+                texto_opcion,
+            )
         if texto_opcion.startswith("menu_"):
             return self._procesar_menu(conversacion, texto_opcion)
 
@@ -598,17 +637,18 @@ class ServicioConversacion:
         )
 
     def _respuesta_alimentos(self) -> RespuestaConversacion:
-        partes = [
-            MENSAJE_ALIMENTOS,
-            (
-                "Puedes escribir cuáles come, cuáles no le gustan y cuáles "
-                "no puede consumir. Usa como referencia:"
-            ),
-        ]
-        for grupo, alimentos in self.grupos_alimentos:
-            partes.append(f"*{grupo}:*")
-            partes.extend(f"• {alimento}" for alimento in alimentos)
-        return RespuestaConversacion("\n".join(partes))
+        return RespuestaConversacion(
+            "\n\n".join(
+                (
+                    MENSAJE_ALIMENTOS,
+                    "Por ejemplo: una base como papa o camote, un alimento "
+                    "con hierro como sangrecita o bazo, y un acompañamiento "
+                    "como zapallo o zanahoria.",
+                    "También dime si hay algo que no le gusta o no puede "
+                    "consumir.",
+                )
+            )
+        )
 
     @staticmethod
     def _respuesta_decision_comentario(
@@ -638,11 +678,7 @@ class ServicioConversacion:
             OpcionRespuesta(
                 id=f"{PREFIJO_CATEGORIA}{indice}",
                 titulo=self._acortar_titulo(self.categorias[indice]),
-                descripcion=(
-                    self.categorias[indice]
-                    if len(self.categorias[indice]) > 24
-                    else f"{len(self.reglas_por_categoria[self.categorias[indice]])} temas"
-                ),
+                descripcion=f"{self._contar_temas_nodo(self.categorias[indice])} temas",
             )
             for indice in range(
                 inicio,
@@ -678,22 +714,38 @@ class ServicioConversacion:
         categoria: str,
         pagina: int,
     ) -> RespuestaConversacion:
-        reglas = self.reglas_por_categoria[categoria]
+        hijos = self.hijos_por_categoria.get(categoria, ())
+        if hijos:
+            opciones = tuple(
+                OpcionRespuesta(
+                    id=f"menu_nodo:{self.nodos_categoria.index(hijo)}",
+                    titulo=self._acortar_titulo(hijo.rsplit("|", 1)[-1]),
+                    descripcion=f"{self._contar_temas_nodo(hijo)} temas",
+                )
+                for hijo in hijos
+            )
+            return RespuestaConversacion(
+                texto=f"{MENSAJE_MENU_ESPECIFICO}\n\n*{categoria.rsplit('|', 1)[-1]}*",
+                opciones=opciones,
+                tipo_opciones="lista",
+                etiqueta_lista="Ver categorías",
+            )
+        reglas = self.reglas_por_categoria.get(categoria, ())
         total_paginas = max(
             1,
             (len(reglas) + TAMANO_PAGINA_SUBCATEGORIAS - 1)
             // TAMANO_PAGINA_SUBCATEGORIAS,
         )
         pagina = min(max(pagina, 0), total_paginas - 1)
-        indice_categoria = self.categorias.index(categoria)
+        indice_categoria = self.nodos_categoria.index(categoria)
         inicio = pagina * TAMANO_PAGINA_SUBCATEGORIAS
         opciones = [
             OpcionRespuesta(
                 id=f"{PREFIJO_REGLA}{regla.id_regla}",
-                titulo=self._acortar_titulo(regla.subcategoria),
+                titulo=self._acortar_titulo(titulo_visible(regla)),
                 descripcion=(
-                    regla.subcategoria
-                    if len(regla.subcategoria) > 24
+                    titulo_visible(regla)
+                    if len(titulo_visible(regla)) > 24
                     else categoria
                 ),
             )
@@ -755,7 +807,9 @@ class ServicioConversacion:
             return self._respuesta_menu_general(conversacion.pagina_menu)
         if (
             conversacion.estado == ESTADO_MENU_ESPECIFICO
-            and conversacion.categoria_menu in self.reglas_por_categoria
+            and conversacion.categoria_menu in (
+                self.reglas_por_categoria | self.hijos_por_categoria
+            )
         ):
             assert conversacion.categoria_menu is not None
             return self._respuesta_menu_especifico(
@@ -1155,6 +1209,24 @@ class ServicioConversacion:
                 (self._respuesta_menu_especifico(categoria, 0),),
             )
 
+        if texto.startswith("menu_nodo:"):
+            try:
+                indice = int(texto.removeprefix("menu_nodo:"))
+                categoria = self.nodos_categoria[indice]
+            except (ValueError, IndexError):
+                return self._respuesta_opcion_invalida(conversacion)
+            conversacion = self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                estado=ESTADO_MENU_ESPECIFICO,
+                categoria_menu=categoria,
+                pagina_menu=0,
+            )
+            return self._resultado(
+                conversacion.id,
+                ESTADO_MENU_ESPECIFICO,
+                (self._respuesta_menu_especifico(categoria, 0),),
+            )
+
         if texto.startswith(PREFIJO_PAGINA_ESPECIFICA):
             valores = texto.removeprefix(PREFIJO_PAGINA_ESPECIFICA).split(":")
             try:
@@ -1163,14 +1235,14 @@ class ServicioConversacion:
                 return self._respuesta_opcion_invalida(conversacion)
             if (
                 len(valores) != 2
-                or not 0 <= indice < len(self.categorias)
+                or not 0 <= indice < len(self.nodos_categoria)
                 or pagina < 0
             ):
                 return self._respuesta_opcion_invalida(conversacion)
-            categoria = self.categorias[indice]
+            categoria = self.nodos_categoria[indice]
             ultima_pagina = max(
                 0,
-                (len(self.reglas_por_categoria[categoria]) - 1)
+                (len(self.reglas_por_categoria.get(categoria, ())) - 1)
                 // TAMANO_PAGINA_SUBCATEGORIAS,
             )
             if pagina > ultima_pagina:
@@ -1193,7 +1265,8 @@ class ServicioConversacion:
             if (
                 regla is None
                 or conversacion.estado != ESTADO_MENU_ESPECIFICO
-                or regla.categoria != conversacion.categoria_menu
+                or "|".join(jerarquia_de_regla(regla).niveles)
+                != conversacion.categoria_menu
             ):
                 return self._respuesta_opcion_invalida(conversacion)
             conversacion = self.repositorio.actualizar_conversacion(
@@ -1270,6 +1343,17 @@ class ServicioConversacion:
             conversacion,
             texto,
         )
+
+        perfil_actualizacion = extraer_perfil_alimentario(texto)
+        if perfil_actualizacion.reconocido:
+            contexto_anterior = conversacion.alimentos_contexto or ""
+            contexto_actualizado = "\n".join(
+                parte for parte in (contexto_anterior, texto.strip()) if parte
+            )
+            conversacion = self.repositorio.actualizar_conversacion(
+                conversacion.id,
+                alimentos_contexto=contexto_actualizado[-1000:],
+            )
 
         if self._es_solicitud_receta(texto):
             meses_receta = self._extraer_meses_consulta(
@@ -1369,10 +1453,39 @@ class ServicioConversacion:
             if usar_contexto
             else None
         )
+        # La búsqueda local es gratuita y suficiente para la mayoría de
+        # consultas. Gemini queda reservado para ambigüedad o texto libre que
+        # no alcanza evidencia revisada.
+        resultado_local = (
+            buscar_mejor_regla(texto, self.reglas)
+            if not usar_contexto
+            else buscar_mejor_regla(
+                texto,
+                self.reglas,
+                categoria_anterior=categoria_anterior,
+                meses_bebe=conversacion.meses_bebe,
+                rango_edad_bebe=conversacion.rango_edad_bebe,
+                alimentos_contexto=conversacion.alimentos_contexto,
+            )
+        )
+
+    def _contar_temas_nodo(self, nodo: str) -> int:
+        return sum(
+            len(reglas)
+            for ruta, reglas in self.reglas_por_categoria.items()
+            if ruta == nodo or ruta.startswith(f"{nodo}|")
+        )
+        if resultado_local is not None:
+            return resultado_local
+
         if self.clasificador is not None:
+            ids_candidatos = candidatas_para_texto(self.reglas, texto)
+            if not ids_candidatos:
+                return None
             contexto = self._crear_contexto_clasificacion(
                 conversacion,
                 categoria_anterior,
+                ids_candidatos=ids_candidatos,
             )
             try:
                 seleccion = self.clasificador.seleccionar(texto, contexto)
@@ -1385,16 +1498,7 @@ class ServicioConversacion:
                 if seleccion is not None:
                     return seleccion
 
-        if not usar_contexto:
-            return buscar_mejor_regla(texto, self.reglas)
-        return buscar_mejor_regla(
-            texto,
-            self.reglas,
-            categoria_anterior=categoria_anterior,
-            meses_bebe=conversacion.meses_bebe,
-            rango_edad_bebe=conversacion.rango_edad_bebe,
-            alimentos_contexto=conversacion.alimentos_contexto,
-        )
+        return None
 
     def _crear_contexto_clasificacion(
         self,
@@ -1403,6 +1507,7 @@ class ServicioConversacion:
         *,
         perfil_alimentario: PerfilAlimentario | None = None,
         recetas_permitidas: tuple[PerfilReceta, ...] = (),
+        ids_candidatos: tuple[str, ...] = (),
     ) -> ContextoClasificacion:
         mensajes = self.repositorio.listar_mensajes(conversacion.id)
         consultas_clasificadas: list[str] = []
@@ -1439,6 +1544,7 @@ class ServicioConversacion:
             ids_permitidos=tuple(
                 perfil.regla.id_regla for perfil in recetas_permitidas
             ),
+            ids_candidatos=ids_candidatos,
             ingredientes_por_id={
                 perfil.regla.id_regla: nombres_ingredientes(
                     perfil.ingredientes
@@ -1513,8 +1619,26 @@ class ServicioConversacion:
         if not recetas_permitidas:
             return (RespuestaConversacion(MENSAJE_RECETA_EXCLUIDA),)
 
+        evaluacion_local = rankear_recetas(
+            recetas_permitidas,
+            perfil_alimentario,
+        )
+        if evaluacion_local is None:  # Protegido por recetas_permitidas.
+            return (RespuestaConversacion(MENSAJE_RECETA_EXCLUIDA),)
+        if not evaluacion_local.aceptados:
+            return self._respuestas_recetas_compatibles(
+                recetas_permitidas,
+                perfil_alimentario,
+            )
+
+        recetas_con_coincidencia = tuple(
+            perfil
+            for perfil in recetas_permitidas
+            if set(perfil.ingredientes) & set(perfil_alimentario.aceptados)
+        )
+
         perfiles_por_id = {
-            perfil.regla.id_regla: perfil for perfil in recetas_permitidas
+            perfil.regla.id_regla: perfil for perfil in recetas_con_coincidencia
         }
         seleccion: SeleccionGoogle | None = None
         origen = "reglas"
@@ -1523,7 +1647,7 @@ class ServicioConversacion:
                 conversacion,
                 self.repositorio.ultima_categoria(conversacion.id),
                 perfil_alimentario=perfil_alimentario,
-                recetas_permitidas=recetas_permitidas,
+                recetas_permitidas=recetas_con_coincidencia,
             )
             try:
                 candidata = self.clasificador.seleccionar(
@@ -1555,8 +1679,8 @@ class ServicioConversacion:
             )
             resultado: ResultadoSeleccion = seleccion
         else:
-            evaluacion = rankear_recetas(
-                recetas_permitidas,
+            evaluacion = seleccionar_receta_variada(
+                recetas_con_coincidencia,
                 perfil_alimentario,
             )
             if evaluacion is None:  # Protegido por recetas_permitidas.
@@ -1568,7 +1692,7 @@ class ServicioConversacion:
                 margen=1.0,
                 coincidencias_exactas=evaluacion.aceptados,
                 coincidencias_aproximadas=(),
-                motivo="seleccion_receta_por_preferencias",
+                motivo="seleccion_receta_variada_por_preferencias",
             )
 
         assert evaluacion is not None
@@ -1612,6 +1736,75 @@ class ServicioConversacion:
             )
         )
         return tuple(respuestas)
+
+    def _respuestas_recetas_compatibles(
+        self,
+        recetas_permitidas: tuple[PerfilReceta, ...],
+        perfil_alimentario: PerfilAlimentario,
+    ) -> tuple[RespuestaConversacion, ...]:
+        """Muestra alternativas seguras, sin fingir afinidad alimentaria."""
+        aceptados = ", ".join(nombres_ingredientes(perfil_alimentario.aceptados))
+        opciones = tuple(
+            OpcionRespuesta(
+                id=f"{PREFIJO_RECETA_COMPATIBLE}{perfil.regla.id_regla}",
+                titulo=self._acortar_titulo(titulo_visible(perfil.regla)),
+                descripcion=", ".join(nombres_ingredientes(perfil.ingredientes))[:72],
+            )
+            for perfil in recetas_permitidas[:3]
+        )
+        return (
+            RespuestaConversacion(
+                "No encuentro una receta MINSA revisada para esta edad que "
+                f"incluya {aceptados}. Estas opciones sí respetan los "
+                "alimentos que indicaste que no puede consumir.",
+                opciones=opciones,
+                tipo_opciones="lista",
+                etiqueta_lista="Ver opciones",
+            ),
+        )
+
+    def _procesar_receta_compatible(
+        self,
+        conversacion: ConversacionActiva,
+        texto: str,
+    ) -> ResultadoConversacion:
+        id_regla = texto.removeprefix(PREFIJO_RECETA_COMPATIBLE)
+        perfil_alimentario = extraer_perfil_alimentario(
+            conversacion.alimentos_contexto or ""
+        )
+        permitidas = {
+            perfil.regla.id_regla: perfil
+            for perfil in filtrar_recetas_por_edad(
+                self.perfiles_recetas,
+                meses_bebe=conversacion.meses_bebe,
+                rango_edad_bebe=conversacion.rango_edad_bebe,
+            )
+            if not (set(perfil.ingredientes) & set(perfil_alimentario.excluidos))
+        }
+        perfil = permitidas.get(id_regla)
+        if perfil is None:
+            return self._respuesta_opcion_invalida(conversacion)
+        evaluacion = rankear_recetas((perfil,), perfil_alimentario)
+        assert evaluacion is not None
+        resultado = ResultadoBusqueda(
+            regla=perfil.regla,
+            puntaje=evaluacion.puntaje,
+            margen=1.0,
+            coincidencias_exactas=evaluacion.aceptados,
+            coincidencias_aproximadas=(),
+            motivo="seleccion_receta_compatible_sin_coincidencia",
+        )
+        respuestas = self._respuestas_desde_regla(
+            resultado,
+            evidencia_adicional={
+                "origen_receta": "seleccion_usuario",
+                "id_receta": perfil.regla.id_regla,
+                "ingredientes_receta": list(
+                    nombres_ingredientes(perfil.ingredientes)
+                ),
+            },
+        )
+        return self._resultado_con_menu(conversacion, respuestas)
 
     @staticmethod
     def _es_solicitud_receta(texto: str) -> bool:
@@ -1678,8 +1871,8 @@ class ServicioConversacion:
         )
         return int(coincidencia.group(1)) * 12 if coincidencia else None
 
-    @staticmethod
     def _respuestas_desde_regla(
+        self,
         resultado: ResultadoSeleccion,
         *,
         evidencia_adicional: dict[str, Any] | None = None,
@@ -1694,9 +1887,15 @@ class ServicioConversacion:
         evidencia = _serializar_resultado(resultado)
         if evidencia_adicional:
             evidencia.update(evidencia_adicional)
+        frase = ""
+        if isinstance(resultado, SeleccionGoogle):
+            posible = resultado.evidencia.get("frase_inicial", "")
+            frase = posible if isinstance(posible, str) else ""
+        if not frase:
+            frase = self._frase_local(regla)
         return (
             RespuestaConversacion(
-                texto=f"{regla.respuesta.strip()}",
+                texto=f"{frase}\n\n{regla.respuesta.strip()}",
                 categoria=regla.categoria,
                 subcategoria=regla.subcategoria,
                 puntaje=puntaje,
@@ -1708,6 +1907,22 @@ class ServicioConversacion:
             RespuestaConversacion(texto=f"Fuente:\n {regla.documento.strip()} pag. {regla.paginas.strip()}\n {enlace}"),
             RespuestaConversacion(texto=MENSAJE_RECORDATORIO_FIN),
         )
+
+    @staticmethod
+    def _frase_local(regla: ReglaConocimiento) -> str:
+        """Respaldo sin IA: cálido, breve y sin contenido clínico nuevo."""
+        seccion = seccion_de_regla(regla)
+        frases = {
+            "Anemia y señales": "Claro, te lo explico de forma sencilla.",
+            "Alimentación y hierro": "Veamos una opción práctica para ti.",
+            "Suplementos": "Te comparto la información revisada.",
+            "Prevención y controles": "Es una buena consulta para cuidar su salud.",
+            "Tratamiento": "Te comparto la orientación revisada.",
+            "Embarazo y lactancia": "Te acompaño con esta información revisada.",
+            "Recetas por edad": "Revisemos esta alternativa según su etapa.",
+            "Ayuda y seguridad": "Gracias por contarlo; revisa esta orientación.",
+        }
+        return frases[seccion]
 
 
 class LimpiezaPeriodica:

@@ -476,7 +476,7 @@ class ServicioConversacionTest(unittest.TestCase):
                 self.assertEqual(clasificada.subcategoria, subcategoria)
                 self.assertEqual(
                     clasificada.evidencia["motivo"],
-                    "seleccion_receta_por_preferencias",
+                    "seleccion_receta_variada_por_preferencias",
                 )
                 self.assertEqual(
                     recomendacion.respuestas[-1].tipo_opciones,
@@ -594,6 +594,76 @@ class ServicioConversacionTest(unittest.TestCase):
             clasificada.evidencia["ingredientes_rechazados_receta"],
             ["aceite vegetal"],
         )
+
+    def test_sin_coincidencia_muestra_recetas_compatibles_sin_elegir_una(self) -> None:
+        self._usar_reglas_reales()
+        usuario = "compatibles-sin-camote"
+        self._iniciar(usuario, "hola")
+        edad = self.servicio.procesar_mensaje(
+            "simulador", usuario, "edad_12_23"
+        )
+        self._confirmar(edad)
+
+        resultado = self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "Puede comer camote pero tiene alergia al ajo",
+        )
+
+        opcion = resultado.respuestas[0]
+        self.assertIn("incluya camote", opcion.texto)
+        self.assertEqual(
+            [respuesta.titulo for respuesta in opcion.opciones],
+            ["Tortilla Brillante", "Fiesta de Verduras", "Torrejita Antianémica"],
+        )
+        self.assertTrue(
+            all(
+                respuesta.id.startswith("receta_compatible:")
+                for respuesta in opcion.opciones
+            )
+        )
+
+        elegida = self.servicio.procesar_mensaje(
+            "simulador", usuario, opcion.opciones[0].id
+        )
+        clasificada = next(
+            respuesta for respuesta in elegida.respuestas if respuesta.categoria
+        )
+        self.assertEqual(clasificada.subcategoria, "Tortilla Brillante")
+        self.assertEqual(
+            clasificada.evidencia["motivo"],
+            "seleccion_receta_compatible_sin_coincidencia",
+        )
+
+    def test_alergia_posterior_actualiza_perfil_antes_de_otra_receta(self) -> None:
+        self._usar_reglas_reales()
+        usuario = "alergia-posterior"
+        self._iniciar(usuario, "hola")
+        edad = self.servicio.procesar_mensaje(
+            "simulador", usuario, "edad_12_23"
+        )
+        self._confirmar(edad)
+        primera = self.servicio.procesar_mensaje(
+            "simulador", usuario, "Puede comer zapallo y zanahoria"
+        )
+        self._confirmar(primera)
+
+        segunda = self.servicio.procesar_mensaje(
+            "simulador",
+            usuario,
+            "No puede comer ajo, ¿qué otra receta me recomiendas?",
+        )
+
+        self.assertIn("no puede consumir", segunda.respuestas[0].texto)
+        self.assertEqual(
+            [opcion.titulo for opcion in segunda.respuestas[0].opciones],
+            ["Tortilla Brillante", "Fiesta de Verduras", "Torrejita Antianémica"],
+        )
+        conversacion = self.repositorio.obtener_conversacion(
+            "simulador", usuario
+        )
+        assert conversacion is not None
+        self.assertIn("ajo", conversacion.alimentos_contexto or "")
 
     def test_menu_paginado_selecciona_regla_y_acepta_texto_libre(self) -> None:
         self._usar_reglas_reales()

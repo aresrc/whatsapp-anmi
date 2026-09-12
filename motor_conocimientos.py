@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import logging
 import math
+import random
 import re
 import unicodedata
 from collections import Counter
@@ -33,6 +34,7 @@ class ReglaConocimiento:
     documento: str = ""
     enlace: str = ""
     id_regla: str = ""
+    ingredientes_receta: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -188,6 +190,7 @@ COLUMNA_DISCLAIMER = "Disclaimer Obligatorio (¡Crítico!)"
 COLUMNA_PAGINAS = "Paginas"
 COLUMNA_DOCUMENTO = "Documento"
 COLUMNA_ENLACE = "Enlace"
+COLUMNA_INGREDIENTES_RECETA = "Ingredientes de la receta"
 
 MARGEN_MINIMO = 0.12
 PUNTAJE_MINIMO = 6.0
@@ -416,6 +419,16 @@ def separar_palabras_clave(celda: str) -> tuple[str, ...]:
     return tuple(palabras)
 
 
+def separar_ingredientes_receta(celda: str) -> tuple[str, ...]:
+    """Lee claves canónicas de receta separadas por ``|`` desde el CSV."""
+    if not celda or not celda.strip():
+        return ()
+    ingredientes = tuple(parte.strip() for parte in celda.split("|") if parte.strip())
+    if len(ingredientes) != len(set(ingredientes)):
+        raise ValueError("La receta contiene ingredientes duplicados")
+    return ingredientes
+
+
 def cargar_motor_conocimientos(
     ruta_csv: str | Path = RUTA_CSV,
 ) -> tuple[ReglaConocimiento, ...]:
@@ -435,6 +448,7 @@ def cargar_motor_conocimientos(
         COLUMNA_PAGINAS,
         COLUMNA_DOCUMENTO,
         COLUMNA_ENLACE,
+        COLUMNA_INGREDIENTES_RECETA,
     }
     reglas: list[ReglaConocimiento] = []
     ids_vistos: set[str] = set()
@@ -460,6 +474,9 @@ def cargar_motor_conocimientos(
             disclaimer = _quitar_comillas_externas(
                 fila.get(COLUMNA_DISCLAIMER, "") or ""
             )
+            ingredientes_receta = separar_ingredientes_receta(
+                fila.get(COLUMNA_INGREDIENTES_RECETA, "") or ""
+            )
 
             if not re.fullmatch(r"ANMI-\d{4}", id_regla):
                 raise ValueError(
@@ -468,6 +485,28 @@ def cargar_motor_conocimientos(
             if id_regla in ids_vistos:
                 raise ValueError(f"ID duplicado en el CSV: {id_regla}")
             ids_vistos.add(id_regla)
+
+            es_receta = normalizar_texto(
+                (fila.get(COLUMNA_CATEGORIA, "") or "")
+            ).startswith("recetas minsa")
+            if es_receta and not ingredientes_receta:
+                raise ValueError(
+                    f"La receta {id_regla} no tiene ingredientes en el CSV"
+                )
+            if not es_receta and ingredientes_receta:
+                raise ValueError(
+                    f"La regla {id_regla} no es receta y tiene ingredientes"
+                )
+            desconocidos = [
+                clave
+                for clave in ingredientes_receta
+                if clave not in _INGREDIENTES_POR_CLAVE
+            ]
+            if desconocidos:
+                raise ValueError(
+                    f"La receta {id_regla} tiene ingredientes desconocidos: "
+                    + ", ".join(desconidos)
+                )
 
             if not palabras_clave:
                 logging.warning(
@@ -495,6 +534,7 @@ def cargar_motor_conocimientos(
                     documento=(fila.get(COLUMNA_DOCUMENTO, "") or "").strip(),
                     enlace=(fila.get(COLUMNA_ENLACE, "") or "").strip(),
                     id_regla=id_regla,
+                    ingredientes_receta=ingredientes_receta,
                 )
             )
 
@@ -1143,81 +1183,6 @@ _INGREDIENTES_POR_CLAVE = {
     ingrediente.clave: ingrediente for ingrediente in INGREDIENTES_RECETAS
 }
 
-# El CSV no tiene una columna de ingredientes. Esta relación controlada se
-# limita a los ingredientes que aparecen literalmente en los pasos revisados
-# y evita inferir o reescribir contenido médico.
-_CLAVES_POR_ID_RECETA: Mapping[str, tuple[str, ...]] = {
-    "ANMI-0157": ("bazo", "zanahoria", "espinaca", "semola", "aceite"),
-    "ANMI-0158": ("bofe", "papa", "leche", "aceite", "cebolla", "ajo"),
-    "ANMI-0159": ("bazo", "camote", "arroz"),
-    "ANMI-0160": ("higado", "arvejas", "papa", "aceite"),
-    "ANMI-0161": ("sangrecita", "tomate", "cebolla", "papa", "aceite"),
-    "ANMI-0162": (
-        "higado",
-        "fideos",
-        "papa",
-        "espinaca",
-        "albahaca",
-        "aceite",
-    ),
-    "ANMI-0163": ("sangrecita", "habas", "cebolla", "tomate"),
-    "ANMI-0164": (
-        "higado",
-        "aceite",
-        "cebolla",
-        "ajo",
-        "culantro",
-        "arvejas",
-        "arroz",
-        "yuca",
-    ),
-    "ANMI-0165": (
-        "pescado",
-        "aceite",
-        "cebolla",
-        "aji_amarillo",
-        "leche",
-        "pan_rallado",
-        "papa",
-        "arroz",
-    ),
-    "ANMI-0166": (
-        "higado",
-        "zapallo",
-        "cebolla",
-        "ajo",
-        "choclo",
-        "queso",
-        "arroz",
-    ),
-    "ANMI-0167": (
-        "sangrecita",
-        "trigo",
-        "cebolla",
-        "ajo",
-        "zanahoria",
-        "arvejas",
-    ),
-    "ANMI-0168": ("bazo", "huevo", "harina", "espinaca", "aceite"),
-    "ANMI-0169": (
-        "bofe",
-        "aceite",
-        "cebolla",
-        "tomate",
-        "pimiento",
-        "arroz",
-        "papa",
-    ),
-    "ANMI-0170": (
-        "sangrecita",
-        "huevo",
-        "harina",
-        "espinaca",
-        "aceite",
-    ),
-}
-
-
 def _ingrediente_aparece_en_texto(
     ingrediente: IngredienteReceta,
     texto: str,
@@ -1236,15 +1201,24 @@ def obtener_perfiles_recetas(
 
     perfiles: list[PerfilReceta] = []
     for regla in reglas:
-        claves = _CLAVES_POR_ID_RECETA.get(regla.id_regla)
-        if claves is None:
-            continue
-        if not normalizar_texto(regla.categoria).startswith("recetas minsa"):
+        claves = regla.ingredientes_receta
+        es_receta = normalizar_texto(regla.categoria).startswith("recetas minsa")
+        if not es_receta and claves:
             raise ValueError(
-                f"{regla.id_regla} no pertenece a una categoría de recetas"
+                f"{regla.id_regla} tiene ingredientes pero no es una receta"
+            )
+        if not es_receta:
+            continue
+        if not claves:
+            raise ValueError(
+                f"{regla.id_regla} no tiene ingredientes de receta"
             )
         for clave in claves:
-            ingrediente = _INGREDIENTES_POR_CLAVE[clave]
+            ingrediente = _INGREDIENTES_POR_CLAVE.get(clave)
+            if ingrediente is None:
+                raise ValueError(
+                    f"{regla.id_regla} tiene un ingrediente desconocido: {clave}"
+                )
             if not _ingrediente_aparece_en_texto(
                 ingrediente,
                 f"{regla.respuesta} {' '.join(regla.palabras_clave)}",
@@ -1475,3 +1449,35 @@ def rankear_recetas(
             -len(resultado.rechazados),
         ),
     )
+
+
+def seleccionar_receta_variada(
+    perfiles: Sequence[PerfilReceta],
+    perfil_alimentario: PerfilAlimentario,
+    *,
+    generador: random.Random | random.SystemRandom | None = None,
+) -> ResultadoReceta | None:
+    """Alterna solo entre recetas empatadas con la mejor compatibilidad segura."""
+    mejor = rankear_recetas(perfiles, perfil_alimentario)
+    if mejor is None:
+        return None
+    clave_mejor = (
+        mejor.puntaje,
+        len(mejor.aceptados),
+        -len(mejor.rechazados),
+    )
+    empatadas = []
+    for perfil in perfiles:
+        candidata = rankear_recetas((perfil,), perfil_alimentario)
+        if candidata is None:
+            continue
+        clave = (
+            candidata.puntaje,
+            len(candidata.aceptados),
+            -len(candidata.rechazados),
+        )
+        if clave == clave_mejor:
+            empatadas.append(candidata)
+    if not empatadas:  # Protegido por ``mejor``.
+        return mejor
+    return (generador or random.SystemRandom()).choice(empatadas)

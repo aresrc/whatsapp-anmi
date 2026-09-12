@@ -37,6 +37,7 @@ ID_SIN_COINCIDENCIA = "SIN_COINCIDENCIA"
 TTL_CACHE_SEGUNDOS = 24 * 60 * 60
 MARGEN_RENOVACION_CACHE = timedelta(minutes=5)
 REINTENTO_CACHE = timedelta(hours=1)
+TEMPERATURA_GOOGLE = 0.25
 
 INSTRUCCION_CLASIFICADOR = """\
 Eres un clasificador del asistente nutricional ANMI. Tu única tarea es elegir
@@ -52,6 +53,8 @@ Si ids_permitidos contiene valores, elige exclusivamente uno de esos IDs o
 devuelve SIN_COINCIDENCIA. Para recetas, usa ingredientes_por_id para comparar
 los alimentos aceptados, rechazados y excluidos; nunca elijas una receta que
 contenga un ingrediente excluido por alergia o intolerancia.
+Incluye frase_inicial solo si es cálida, tiene hasta 12 palabras y no agrega
+consejos médicos, dosis, diagnósticos ni instrucciones. Si no aplica, usa "".
 """
 
 
@@ -76,6 +79,7 @@ class ContextoClasificacion:
     ingredientes_por_id: Mapping[str, tuple[str, ...]] = field(
         default_factory=dict
     )
+    ids_candidatos: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -110,6 +114,7 @@ class ClasificadorConsultas(Protocol):
 
 class _RespuestaClasificacion(BaseModel):
     id_regla: str
+    frase_inicial: str = ""
 
 
 def _leer_csv(ruta: Path) -> tuple[list[str], list[dict[str, str]]]:
@@ -221,12 +226,16 @@ class ClasificadorGoogle:
         cliente: Any | None = None,
         modelo: str = MODELO_GOOGLE,
         ttl_cache_segundos: int = TTL_CACHE_SEGUNDOS,
+        temperatura: float = TEMPERATURA_GOOGLE,
     ) -> None:
         if not api_key.strip():
             raise ValueError("API_GOOGLE no puede estar vacío")
         self.catalogo = catalogo
         self.modelo = modelo
         self.ttl_cache_segundos = ttl_cache_segundos
+        if not 0 <= temperatura <= 1:
+            raise ValueError("temperatura debe estar entre 0 y 1")
+        self.temperatura = temperatura
         self.cliente = cliente or genai.Client(
             api_key=api_key.strip(),
             http_options=types.HttpOptions(timeout=10_000),
@@ -256,12 +265,15 @@ class ClasificadorGoogle:
         contexto: ContextoClasificacion,
     ) -> SeleccionGoogle | None:
         prompt = self._crear_prompt_dinamico(texto, contexto)
-        nombre_cache = self._obtener_cache_explicita()
+        ids_restringidos = contexto.ids_permitidos or contexto.ids_candidatos
+        nombre_cache = (
+            None if ids_restringidos else self._obtener_cache_explicita()
+        )
         modo_cache = "explicita" if nombre_cache else "implicita"
 
         config: dict[str, Any] = {
-            "temperature": 0,
-            "max_output_tokens": 64,
+            "temperature": self.temperatura,
+            "max_output_tokens": 80,
             "response_mime_type": "application/json",
             "response_schema": _RespuestaClasificacion,
             "thinking_config": types.ThinkingConfig(thinking_budget=0),
@@ -273,7 +285,7 @@ class ClasificadorGoogle:
             config["system_instruction"] = INSTRUCCION_CLASIFICADOR
             contenido = (
                 "CATÁLOGO DE IDS:\n"
-                + self.catalogo.texto_para_modelo
+                + self._catalogo_para_ids(ids_restringidos)
                 + "\nSOLICITUD:\n"
                 + prompt
             )
@@ -284,7 +296,7 @@ class ClasificadorGoogle:
                 contents=contenido,
                 config=types.GenerateContentConfig(**config),
             )
-            id_regla = self._extraer_id(respuesta)
+            id_regla, frase_inicial = self._extraer_respuesta(respuesta)
         except Exception as error:
             raise ErrorClasificacionGoogle(
                 f"Gemini no pudo clasificar: {type(error).__name__}"
@@ -293,8 +305,8 @@ class ClasificadorGoogle:
         if id_regla == ID_SIN_COINCIDENCIA:
             return None
         if (
-            contexto.ids_permitidos
-            and id_regla not in contexto.ids_permitidos
+            ids_restringidos
+            and id_regla not in ids_restringidos
         ):
             raise ErrorClasificacionGoogle(
                 f"Gemini devolvió un ID no permitido: {id_regla}"
@@ -319,6 +331,7 @@ class ClasificadorGoogle:
             ),
             "tokens_salida": getattr(uso, "candidates_token_count", None),
             "tokens_totales": getattr(uso, "total_token_count", None),
+            "frase_inicial": self._validar_frase_inicial(frase_inicial),
         }
         return SeleccionGoogle(
             id_regla=id_regla,
@@ -343,6 +356,7 @@ class ClasificadorGoogle:
             "alimentos_rechazados": list(contexto.alimentos_rechazados),
             "alimentos_excluidos": list(contexto.alimentos_excluidos),
             "ids_permitidos": list(contexto.ids_permitidos),
+            "ids_candidatos": list(contexto.ids_candidatos),
             "ingredientes_por_id": {
                 id_regla: list(ingredientes)
                 for id_regla, ingredientes in contexto.ingredientes_por_id.items()
@@ -356,24 +370,58 @@ class ClasificadorGoogle:
             + json.dumps(datos, ensure_ascii=False, separators=(",", ":"))
         )
 
+    def _catalogo_para_ids(self, ids: tuple[str, ...]) -> str:
+        """Serializa solo los candidatos locales cuando existen."""
+        if not ids:
+            return self.catalogo.texto_para_modelo
+        salida = io.StringIO(newline="")
+        escritor = csv.DictWriter(
+            salida,
+            fieldnames=["ID", "Categoría", "Subcategoría"],
+            lineterminator="\n",
+        )
+        escritor.writeheader()
+        for id_regla in ids:
+            regla = self.catalogo.reglas_por_id.get(id_regla)
+            if regla is not None:
+                escritor.writerow(
+                    {
+                        "ID": id_regla,
+                        "Categoría": regla.categoria,
+                        "Subcategoría": regla.subcategoria,
+                    }
+                )
+        return salida.getvalue()
+
     @staticmethod
-    def _extraer_id(respuesta: Any) -> str:
+    def _extraer_respuesta(respuesta: Any) -> tuple[str, str]:
         datos = getattr(respuesta, "parsed", None)
         if isinstance(datos, _RespuestaClasificacion):
             valor = datos.id_regla
+            frase = datos.frase_inicial
         elif isinstance(datos, dict):
             valor = datos.get("id_regla")
+            frase = datos.get("frase_inicial", "")
         else:
             try:
                 decodificado = json.loads(respuesta.text)
                 valor = decodificado.get("id_regla")
+                frase = decodificado.get("frase_inicial", "")
             except (AttributeError, TypeError, ValueError) as error:
                 raise ErrorClasificacionGoogle(
                     "Gemini no devolvió JSON estructurado"
                 ) from error
         if not isinstance(valor, str) or not valor.strip():
             raise ErrorClasificacionGoogle("Gemini no devolvió id_regla")
-        return valor.strip()
+        return valor.strip(), frase if isinstance(frase, str) else ""
+
+    @staticmethod
+    def _validar_frase_inicial(frase: str) -> str:
+        frase = " ".join(frase.split()).strip()
+        if len(frase) > 120 or len(frase.split()) > 12:
+            return ""
+        prohibidas = ("mg", "ml", "dosis", "diagnostic", "receta", "toma ")
+        return "" if any(item in frase.lower() for item in prohibidas) else frase
 
     def _obtener_cache_explicita(self) -> str | None:
         ahora = datetime.now(UTC)

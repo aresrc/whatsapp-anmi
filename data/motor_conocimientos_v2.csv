@@ -1,4 +1,4 @@
-﻿ID,Categoría,Subcategoría,Palabras Clave (Para el bot),Respuesta Verificada (Lenguaje sencillo para el chat),Disclaimer Obligatorio (¡Crítico!),Paginas,Documento,Enlace
+﻿ID,Categoría,Subcategoría,Palabras Clave (Para el bot),Respuesta Verificada (Lenguaje sencillo para el chat),Disclaimer Obligatorio (¡Crítico!),Paginas,Documento,Enlace,Ingredientes de la receta
 ANMI-0001,Definición y Síntomas,¿Qué es la Anemia? (Básico),"anemia, explicacion, definicion","""🩺 Hola. La *anemia* es una condición que ocurre cuando a la sangre le falta suficiente *hierro*. Es importante prevenirla y tratarla a tiempo, especialmente en bebés y gestantes.""","""Recuerda, yo solo doy información general. El diagnóstico solo lo puede hacer un profesional de la salud con un examen de sangre.""",6,Resolucion_Ministerial_n_251_2024_MINSA.pdf,https://drive.google.com/file/d/1hZSXK8y7sbgNLRXKrxErAFSkjh8kfkW0/view?usp=drive_link
 ANMI-0002,Definición y Síntomas,¿Qué es la Anemia? (Técnico) (Hemoglobina),"falta, hierro, anemia, deficiencia, ferropenica","""🩺 La *anemia* ferropénica (que es la más común) es cuando el cuerpo no tiene el hierro que necesita. El hierro es un mineral vital para fabricar la *hemoglobina*, que transporta el oxígeno en la sangre.""","""Mi función es educativa. Si tienes dudas sobre la salud de tu bebé, consulta en tu centro de salud.""",6,Resolucion_Ministerial_n_251_2024_MINSA.pdf,https://drive.google.com/file/d/1hZSXK8y7sbgNLRXKrxErAFSkjh8kfkW0/view?usp=drive_link
 ANMI-0003,Definición y Síntomas,¿Qué es la Anemia? (Simple),"anemia, explicame, significa","""🩺 Claro. Tener *anemia* significa que la sangre tiene bajo el *hierro*. El hierro es como el 'combustible' para que la sangre lleve oxígeno al cuerpo. Sin él, el cuerpo no funciona al 100%.""","""Yo no puedo diagnosticar. Para saber si tu bebé tiene anemia, debe pasar por su control de hemoglobina en el centro de salud.""",6,Resolucion_Ministerial_n_251_2024_MINSA.pdf,https://drive.google.com/file/d/1hZSXK8y7sbgNLRXKrxErAFSkjh8kfkW0/view?usp=drive_link
@@ -177,71 +177,71 @@ ANMI-0157,Recetas MINSA (6-8m),Purecito Nutritivo,"receta, nutritivo, purecito, 
 *1.* Sancocha la pulpa de 2 cucharadas de bazo.
 *2.* Aparte, sancocha una rodaja de zanahoria y una hoja de espinaca; aplástalas.
 *3.* Cocina 1 cucharada de sémola en caldo.
-*4.* Junta todo, añade 1 1/2 cucharadita de aceite vegetal y sírvelo.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",18,Recetario_Anemia_pagina_1-20.pdf.pdf,https://drive.google.com/file/d/11OWnLf7qt8FNNHhJaFEe7r--2ecETElO/view?usp=drive_link
+*4.* Junta todo, añade 1 1/2 cucharadita de aceite vegetal y sírvelo.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",18,Recetario_Anemia_pagina_1-20.pdf.pdf,https://drive.google.com/file/d/11OWnLf7qt8FNNHhJaFEe7r--2ecETElO/view?usp=drive_link,bazo|zanahoria|espinaca|semola|aceite
 ANMI-0158,Recetas MINSA (6-8m),Suavecito Infantil,"receta, suavecito, infantil, bofe, pure, bebe","""🍲 El *'Suavecito Infantil'* es otra receta del MINSA:
 *1.* Sancocha, licúa y cuela 2 cucharadas de bofe.
 *2.* Prepara un puré con papa amarilla y leche.
 *3.* Haz un aderezo con aceite, cebolla y ajos, y mezcla el bofe licuado.
-*4.* Sirve el puré de papa con la salsa de bofe encima.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",21,Recetario_Anemia_pagina_21-30.pdf.pdf,https://drive.google.com/file/d/1OqsuUbusa0TWlRLrsNkBBywVo1ZeKDiT/view?usp=drive_link
+*4.* Sirve el puré de papa con la salsa de bofe encima.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",21,Recetario_Anemia_pagina_21-30.pdf.pdf,https://drive.google.com/file/d/1OqsuUbusa0TWlRLrsNkBBywVo1ZeKDiT/view?usp=drive_link,bofe|papa|leche|aceite|cebolla|ajo
 ANMI-0159,Recetas MINSA (6-8m),Puré de Bazo y Camote,"bazo, receta, camote, pure, 6, meses, bebe","""🍲 El *'Puré de Bazo y Camote'* es ideal:
 *1.* Sancocha 2 cucharadas de bazo y 1/2 camote amarillo.
 *2.* Sancocha arroz.
 *3.* Licúa el bazo y el camote con un poco de caldo hasta que quede un puré espeso.
-*4.* Sirve el puré de bazo y camote junto con el arroz sancochado y aplastado.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",23,Recetario_Anemia_pagina_21-30.pdf.pdf,https://drive.google.com/file/d/1OqsuUbusa0TWlRLrsNkBBywVo1ZeKDiT/view?usp=drive_link
+*4.* Sirve el puré de bazo y camote junto con el arroz sancochado y aplastado.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",23,Recetario_Anemia_pagina_21-30.pdf.pdf,https://drive.google.com/file/d/1OqsuUbusa0TWlRLrsNkBBywVo1ZeKDiT/view?usp=drive_link,bazo|camote|arroz
 ANMI-0160,Recetas MINSA (6-8m),Purecito de Arveja,"higado, arveja, arvejas, pure, receta, bebe","""🍲 El *'Purecito de Arveja con Hígado'* es muy nutritivo:
 *1.* Sancocha 2 cucharadas de hígado de pollo y pícalo.
 *2.* Sancocha y licúa 3 cucharadas de arveja fresca.
 *3.* Sancocha papa amarilla y aplástala.
-*4.* Mezcla la papa con la arveja licuada y el hígado picado. Añade aceite vegetal.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",27,Recetario_Anemia_pagina_21-30.pdf.pdf,https://drive.google.com/file/d/1OqsuUbusa0TWlRLrsNkBBywVo1ZeKDiT/view?usp=drive_link
+*4.* Mezcla la papa con la arveja licuada y el hígado picado. Añade aceite vegetal.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",27,Recetario_Anemia_pagina_21-30.pdf.pdf,https://drive.google.com/file/d/1OqsuUbusa0TWlRLrsNkBBywVo1ZeKDiT/view?usp=drive_link,higado|arvejas|papa|aceite
 ANMI-0161,Recetas MINSA (9-11m),Lomo de Sangrecita,"sangrecita, receta, lomo, saltada, 9, meses","""🍲 Para bebés de 9-11 meses, el MINSA sugiere el *'Lomo de Sangrecita'*:
 *1.* Sancocha 2 cucharadas de sangrecita y pícala.
 *2.* Pica 1/4 de tomate y 1/4 de cebolla.
 *3.* Sancocha papa amarilla y córtala en tiritas.
-*4.* En una sartén con aceite, dora la cebolla, tomate y agrega la sangrecita picada. Sírvelo junto a las tiritas de papa.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",29,Recetario_Anemia_pagina_21-30.pdf.pdf,https://drive.google.com/file/d/1OqsuUbusa0TWlRLrsNkBBywVo1ZeKDiT/view?usp=drive_link
+*4.* En una sartén con aceite, dora la cebolla, tomate y agrega la sangrecita picada. Sírvelo junto a las tiritas de papa.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",29,Recetario_Anemia_pagina_21-30.pdf.pdf,https://drive.google.com/file/d/1OqsuUbusa0TWlRLrsNkBBywVo1ZeKDiT/view?usp=drive_link,sangrecita|tomate|cebolla|papa|aceite
 ANMI-0162,Recetas MINSA (9-11m),Tallarines Verdes,"verdes, tallarines, fideos, 10, higado, receta, meses, bebe","""🍲 Puedes preparar *'Tallarines Verdes con Hígado'*:
 *1.* Sancocha 2 cucharadas de hígado de pollo y pícalo.
 *2.* Sancocha fideos (1/4 taza) y papa amarilla.
 *3.* Licúa espinaca y albahaca con aceite.
-*4.* Mezcla la salsa verde con los fideos y sirve con el hígado picado y la papa aplastada.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",31,Recetario_Anemia_pagina_31-40.pdf.pdf,https://drive.google.com/file/d/1wAuQy2n7QmohBq2Fwc1rVZn7CL6uTEQo/view?usp=drive_link
+*4.* Mezcla la salsa verde con los fideos y sirve con el hígado picado y la papa aplastada.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",31,Recetario_Anemia_pagina_31-40.pdf.pdf,https://drive.google.com/file/d/1wAuQy2n7QmohBq2Fwc1rVZn7CL6uTEQo/view?usp=drive_link,higado|fideos|papa|espinaca|albahaca|aceite
 ANMI-0163,Recetas MINSA (9-11m),Puré de Habas,"sangrecita, habas, pure, jugo, receta","""🍲 El *'Puré de Habas con Sangrecita al Jugo'* es una gran opción:
 *1.* Sancocha 2 cucharadas de sangrecita y pícala.
 *2.* Sancocha 3 cucharadas de habas secas y aplástalas tipo puré.
 *3.* Haz un aderezo de cebolla y tomate picado, agrega la sangrecita y un poco de caldo para que quede jugoso.
-*4.* Sirve el puré de habas con la sangrecita al jugo.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",33,Recetario_Anemia_pagina_31-40.pdf.pdf,https://drive.google.com/file/d/1wAuQy2n7QmohBq2Fwc1rVZn7CL6uTEQo/view?usp=drive_link
+*4.* Sirve el puré de habas con la sangrecita al jugo.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",33,Recetario_Anemia_pagina_31-40.pdf.pdf,https://drive.google.com/file/d/1wAuQy2n7QmohBq2Fwc1rVZn7CL6uTEQo/view?usp=drive_link,sangrecita|habas|cebolla|tomate
 ANMI-0164,Recetas MINSA (9-11m),Seco de Hígado,"seco, pollo, higado, receta, bebe","""🍲 Puedes hacer *'Seco de Hígado de Pollo'*:
 *1.* Pica 2 cucharadas de hígado de pollo.
 *2.* Haz un aderezo con aceite, cebolla, ajos y culantro licuado.
 *3.* Agrega el hígado picado y 2 cucharadas de arvejas frescas. Cocina bien.
-*4.* Sírvelo acompañado de arroz sancochado y yuca sancochada.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",35,Recetario_Anemia_pagina_31-40.pdf.pdf,https://drive.google.com/file/d/1wAuQy2n7QmohBq2Fwc1rVZn7CL6uTEQo/view?usp=drive_link
+*4.* Sírvelo acompañado de arroz sancochado y yuca sancochada.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",35,Recetario_Anemia_pagina_31-40.pdf.pdf,https://drive.google.com/file/d/1wAuQy2n7QmohBq2Fwc1rVZn7CL6uTEQo/view?usp=drive_link,higado|aceite|cebolla|ajo|culantro|arvejas|arroz|yuca
 ANMI-0165,Recetas MINSA (9-11m),Ají de Pescado,"aji, pescado, receta, bebe, gallina","""🍲 El *'Ají de Pescado'* (sin ají picante):
 *1.* Sancocha 1/4 de filete de pescado (bonito) y deshiláchalo.
 *2.* Haz un aderezo con aceite, cebolla y ají amarillo (sin picante, solo para dar color).
 *3.* Agrega el pescado deshilachado, un chorrito de leche y pan rallado.
-*4.* Sírvelo con papa sancochada y arroz.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",37,Recetario_Anemia_pagina_31-40.pdf.pdf,https://drive.google.com/file/d/1wAuQy2n7QmohBq2Fwc1rVZn7CL6uTEQo/view?usp=drive_link
+*4.* Sírvelo con papa sancochada y arroz.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",37,Recetario_Anemia_pagina_31-40.pdf.pdf,https://drive.google.com/file/d/1wAuQy2n7QmohBq2Fwc1rVZn7CL6uTEQo/view?usp=drive_link,pescado|aceite|cebolla|aji_amarillo|leche|pan_rallado|papa|arroz
 ANMI-0166,Recetas MINSA (12-23m),Locro de Zapallo,"locro, zapallo, ano, 1, higado, receta, bebe","""🍲 Para bebés de 1 año, puedes hacer *'Locro de Zapallo con Hígado'*:
 *1.* Pica 2 cucharadas de hígado de res.
 *2.* Sancocha 1/2 taza de zapallo picado.
 *3.* Haz un aderezo de cebolla y ajo, agrega el hígado picado y cocínalo.
-*4.* Añade el zapallo, 2 cucharadas de choclo y 1 cucharada de queso fresco. Sírvelo con arroz.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",41,Recetario_Anemia_pagina_41-50.pdf.pdf,https://drive.google.com/file/d/1Mz_Cp0Xn3HFO3ml05_F6iBIrpAGYx3aR/view?usp=drive_link
+*4.* Añade el zapallo, 2 cucharadas de choclo y 1 cucharada de queso fresco. Sírvelo con arroz.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",41,Recetario_Anemia_pagina_41-50.pdf.pdf,https://drive.google.com/file/d/1Mz_Cp0Xn3HFO3ml05_F6iBIrpAGYx3aR/view?usp=drive_link,higado|zapallo|cebolla|ajo|choclo|queso|arroz
 ANMI-0167,Recetas MINSA (12-23m),Trigo a la Jardinera,"trigo, receta, jardinera, ano, 1, sangrecita","""🍲 El *'Trigo a la Jardinera'* es muy completo:
 *1.* Sancocha 2 cucharadas de sangrecita y pícala.
 *2.* Sancocha 3 cucharadas de trigo.
 *3.* Haz un aderezo con cebolla, ajo, zanahoria y arvejas.
-*4.* Agrega el trigo cocido y la sangrecita picada. Mezcla bien y sirve.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",43,Recetario_Anemia_pagina_41-50.pdf.pdf,https://drive.google.com/file/d/1Mz_Cp0Xn3HFO3ml05_F6iBIrpAGYx3aR/view?usp=drive_link
+*4.* Agrega el trigo cocido y la sangrecita picada. Mezcla bien y sirve.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",43,Recetario_Anemia_pagina_41-50.pdf.pdf,https://drive.google.com/file/d/1Mz_Cp0Xn3HFO3ml05_F6iBIrpAGYx3aR/view?usp=drive_link,sangrecita|trigo|cebolla|ajo|zanahoria|arvejas
 ANMI-0168,Recetas MINSA (12-23m),Tortilla Brillante,"tortilla, bazo, receta, brillante, ano, 1","""🍲 La *'Tortilla Brillante'* usa bazo:
 *1.* Sancocha y pica 2 cucharadas de bazo.
 *2.* Bate un huevo.
 *3.* Mezcla el huevo batido con el bazo picado, 1 cucharada de harina de trigo y 1 cucharada de espinaca picada.
-*4.* Fríe la tortilla en una sartén con aceite.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",45,Recetario_Anemia_pagina_41-50.pdf.pdf,https://drive.google.com/file/d/1Mz_Cp0Xn3HFO3ml05_F6iBIrpAGYx3aR/view?usp=drive_link
+*4.* Fríe la tortilla en una sartén con aceite.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",45,Recetario_Anemia_pagina_41-50.pdf.pdf,https://drive.google.com/file/d/1Mz_Cp0Xn3HFO3ml05_F6iBIrpAGYx3aR/view?usp=drive_link,bazo|huevo|harina|espinaca|aceite
 ANMI-0169,Recetas MINSA (12-23m),Fiesta de Verduras,"bofe, receta, fiesta, saltado, verduras, ano, 1","""🍲 La *'Fiesta de Verduras'* es un saltado de bofe:
 *1.* Sancocha y pica 3 cucharadas de bofe.
 *2.* En una sartén con aceite, saltea el bofe con cebolla, tomate y pimiento picado.
-*3.* Sírvelo con arroz y papa sancochada.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",47,Recetario_Anemia_pagina_1-20.pdf.pdf,https://drive.google.com/file/d/11OWnLf7qt8FNNHhJaFEe7r--2ecETElO/view?usp=drive_link
+*3.* Sírvelo con arroz y papa sancochada.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",47,Recetario_Anemia_pagina_1-20.pdf.pdf,https://drive.google.com/file/d/11OWnLf7qt8FNNHhJaFEe7r--2ecETElO/view?usp=drive_link,bofe|aceite|cebolla|tomate|pimiento|arroz|papa
 ANMI-0170,Recetas MINSA (12-23m),Torrejita Antianémica,"receta, sangrecita, torrejita, antianemica, torreja, ano, 1","""🍲 La *'Torrejita Antianémica'* es una gran idea:
 *1.* Sancocha y aplasta 2 cucharadas de sangrecita.
 *2.* Bate un huevo.
 *3.* Mezcla el huevo batido, la sangrecita, 1 cucharada de harina de trigo y 1 cucharada de espinaca picada.
-*4.* Fríe la mezcla como torrejitas en aceite.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",49,Recetario_Anemia_pagina_1-20.pdf.pdf,https://drive.google.com/file/d/11OWnLf7qt8FNNHhJaFEe7r--2ecETElO/view?usp=drive_link
+*4.* Fríe la mezcla como torrejitas en aceite.""","""Esta receta es una sugerencia. Recuerda que la información de recetas no reemplaza la consulta con un profesional de la salud.""",49,Recetario_Anemia_pagina_1-20.pdf.pdf,https://drive.google.com/file/d/11OWnLf7qt8FNNHhJaFEe7r--2ecETElO/view?usp=drive_link,sangrecita|huevo|harina|espinaca|aceite
 ANMI-0171,Micronutrientes (MMN),¿Qué son?,"polvito, rojo, chispitas, micronutrientes, comida","""🥄 Los micronutrientes (a veces llamados 'chispitas' o 'el sobre rojo') son un polvito que contiene una mezcla de vitaminas y minerales claves para tu bebé. Incluyen Hierro, Zinc, *Ácido Fólico*, Vitamina A y *Vitamina C*.""","""Son gratuitos y te los entregan en tu centro de salud.""",52,Recetario_Anemia_pagina_51-56.pdf.pdf,https://drive.google.com/file/d/1vHemDd5D7P5XuTOCu-CV5ofmLDB99_cT/view?usp=drive_link
 ANMI-0172,Micronutrientes (MMN),¿Para qué sirven?,"sirven, beneficios, rojo, chispitas, micronutrientes","""🥄 Su función principal es prevenir la *anemia* en los bebés. Además, ayudan a mejorar sus defensas contra las enfermedades y apoyan su capacidad para aprender y desarrollarse.""","""Esta información es educativa y no reemplaza la consulta con un profesional de la salud.""",52,Recetario_Anemia_pagina_51-56.pdf.pdf,https://drive.google.com/file/d/1vHemDd5D7P5XuTOCu-CV5ofmLDB99_cT/view?usp=drive_link
 ANMI-0173,Micronutrientes (MMN),¿Quiénes los toman?,"toma, edad, mmn, chispitas, micronutrientes","""🥄 Los *micronutrientes* en polvo son para niños y niñas de 6 a 35 meses de edad. Son parte de la prevención de la *anemia*.""","""Consulta en tu control CRED si a tu bebé le corresponde recibir los micronutrientes.""",53,Recetario_Anemia_pagina_51-56.pdf.pdf,https://drive.google.com/file/d/1vHemDd5D7P5XuTOCu-CV5ofmLDB99_cT/view?usp=drive_link

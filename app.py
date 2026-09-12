@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 import os
 from pathlib import Path
@@ -27,6 +29,7 @@ from servicio_conversacion import (
     RespuestaConversacion,
     ServicioConversacion,
 )
+from privacidad import redactar_datos_personales
 
 
 load_dotenv()
@@ -97,6 +100,15 @@ def _ocultar_identificador(valor: str) -> str:
     if len(valor) <= 4:
         return "****"
     return f"***{valor[-4:]}"
+
+
+def _anonimizar_usuario(numero: str) -> str:
+    """No entrega el número de WhatsApp a la capa de conversación/SQLite."""
+    return hmac.new(
+        ANMI_USER_HASH_SECRET.encode("utf-8"),
+        f"whatsapp\0{numero}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def enviar_mensaje(
@@ -374,6 +386,7 @@ def crear_app(
 
         for mensaje in mensajes:
             numero = mensaje["numero"]
+            texto_redactado = redactar_datos_personales(mensaje["texto"])
             logging.info(
                 "Mensaje recibido de %s (id=%s)",
                 _ocultar_identificador(numero),
@@ -381,8 +394,8 @@ def crear_app(
             )
             resultado = servicio_actual.procesar_mensaje(
                 "whatsapp",
-                numero,
-                mensaje["texto"],
+                _anonimizar_usuario(numero),
+                texto_redactado.texto,
                 mensaje_externo_id=mensaje["id"],
             )
             if resultado.duplicado:
